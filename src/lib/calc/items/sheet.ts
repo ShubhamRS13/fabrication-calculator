@@ -11,18 +11,29 @@ export const plate: ItemType = {
     { key: "length", label: "Length", kind: "number", unit: "mm" },
     { key: "width", label: "Width", kind: "number", unit: "mm" },
     THK,
+    {
+      key: "thkAllowance",
+      label: "THK allowance",
+      kind: "number",
+      unit: "mm",
+      optional: true,
+      help: "Added to THK for weight, e.g. 0.5 for chequered plate",
+    },
   ],
   compute(inp, { density }) {
     const L = pos(inp, "length", "Length");
     const W = pos(inp, "width", "Width");
     const t = pos(inp, "thk", "THK");
-    const wt = kg(L * W * t, density);
+    const allowance = optNum(inp, "thkAllowance");
+    const tw = t + allowance;
+    const wt = kg(L * W * tw, density);
+    const thkText = allowance ? `(${f(t)} + ${f(allowance)})` : f(t);
     return weightResult({
       finishWt: wt,
       processWt: wt,
       sheetL: L,
       sheetW: W,
-      formula: `${f(L)} × ${f(W)} × ${f(t)} × ${f(density)} / 1e6 = ${f(wt)} kg`,
+      formula: `${f(L)} × ${f(W)} × ${thkText} × ${f(density)} / 1e6 = ${f(wt)} kg`,
     });
   },
 };
