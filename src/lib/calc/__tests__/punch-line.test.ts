@@ -26,7 +26,8 @@ describe("Punch Line System workbook (golden rows)", () => {
         if (row.wb?.finish !== undefined) expect(out.finishWt).toBeCloseTo(row.wb.finish, 6);
       }
       if (row.status === "fixed") {
-        expect(out.finishWt).not.toBeCloseTo(row.wb!.finish!, 2);
+        const app = row.wb?.finish !== undefined ? out.finishWt : out.processWt;
+        expect(app).not.toBeCloseTo(row.wb!.finish ?? row.wb!.process!, 3);
       }
       if (row.status === "missing") expect(out.processWt).toBeGreaterThan(0);
       if (row.status === "bought") expect(out.unit?.costedByWeight).toBe(false);

@@ -1,11 +1,14 @@
 import type { Material, MaterialFamily } from "./types";
 
-/** Starting list; editable in Settings. SS202 added (missing from the old workbook). */
+/**
+ * Starting list; editable in Settings. SS202 was missing from the old workbook's
+ * DENSITY(); it uses 8.0 like the other SS grades (rounded, as the workshop does).
+ */
 export const DEFAULT_MATERIALS: Material[] = [
   { code: "MS", density: 7.85, family: "MS" },
   { code: "SS304", density: 8.0, family: "SS" },
   { code: "SS316", density: 8.0, family: "SS" },
-  { code: "SS202", density: 7.8, family: "SS" },
+  { code: "SS202", density: 8.0, family: "SS" },
 ];
 
 export function familyOf(code: string): MaterialFamily {

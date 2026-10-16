@@ -17,8 +17,13 @@ export const BUILT_IN_TYPES: ItemType[] = [
 export function buildRegistry(customShapes: CustomShapeDef[] = []): Map<string, ItemType> {
   const map = new Map(BUILT_IN_TYPES.map((t) => [t.id, t]));
   for (const def of customShapes) {
-    const t = makeCustomItemType(def);
-    map.set(t.id, t);
+    // A shape whose formula no longer compiles is skipped; its items report "Unknown item type".
+    try {
+      const t = makeCustomItemType(def);
+      map.set(t.id, t);
+    } catch {
+      continue;
+    }
   }
   return map;
 }

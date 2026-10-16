@@ -107,8 +107,8 @@ describe("costing engine", () => {
       { id: "s", type: "plate", name: "SS202 plate", qty: 1, material: "SS202", inputs: { length: 1000, width: 1000, thk: 1 } },
     ];
     const d = computeCosting(c).drawings[0];
-    expect(d.byMaterial[0].finish).toBeCloseTo(7.8, 9);
-    expect(d.charges.find((x) => x.line.id === "labour-ss")!.amount).toBeCloseTo(7.8 * 85, 9);
+    expect(d.byMaterial[0].finish).toBeCloseTo(8, 9);
+    expect(d.charges.find((x) => x.line.id === "labour-ss")!.amount).toBeCloseTo(8 * 85, 9);
   });
 
   it("outsourced dished end: material by weight plus job work", () => {

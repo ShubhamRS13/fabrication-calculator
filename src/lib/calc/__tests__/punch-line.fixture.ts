@@ -1,12 +1,12 @@
 // Rows from "Punch Line System.xlsx" re-entered as app items.
 // `wb` holds the value the workbook shows; `status` says how the app compares:
 //   match   – workbook used a formula; app must reproduce it exactly
-//   check   – matches only with an assumption we need Shubham to confirm (see note)
+//   check   – matches only with an assumption still to be confirmed (see note)
 //   typed   – workbook weight was typed by hand; app computes it from a formula
 //   fixed   – workbook formula is wrong; app gives the corrected value
 //   missing – workbook has no weight at all; app fills it in
 //   bought  – bought item, priced qty × rate, no weight
-// The workbook uses density 8 for every SS grade (incl. SS202), so the check runs at 8.
+// The workbook uses density 8 for every SS grade, SS202 included (the app's default too).
 
 export type GoldenStatus = "match" | "check" | "typed" | "fixed" | "missing" | "bought";
 
@@ -38,7 +38,7 @@ export const GOLDEN_ROWS: GoldenRow[] = [
   { tab: SH, row: 17, name: "PLATE", qty: 3, type: "plate", inputs: { length: 200, width: 50, thk: 3 }, wb: { process: 0.72 }, status: "match" },
   { tab: SH, row: 18, name: "PLATE", qty: 1, type: "plate", inputs: { length: 947, width: 150, thk: 3 }, wb: { process: 3.4092 }, status: "match" },
   { tab: SH, row: 19, name: "PLATE", qty: 1, type: "plate", inputs: { length: 949, width: 150, thk: 3 }, wb: { process: 3.4164 }, status: "match" },
-  { tab: SH, row: 20, name: "PIPE 80 NB SCH 10S", qty: 1, type: "pipe-sch", inputs: { nb: "80", sch: "10S", length: 722 }, wb: { process: 3.8 }, status: "typed", note: "Typed 3.8 kg; 80 NB SCH 10S (OD 88.9 × 3.05) is about 6.6 kg/m, so 722 mm ≈ 4.75 kg" },
+  { tab: SH, row: 20, name: "PIPE 80 NB SCH 10S", qty: 1, type: "pipe-sch", inputs: { nb: "80", sch: "10S", length: 722 }, wb: { process: 3.8 }, status: "typed", note: "Typed 3.8 kg, calculated by hand (confirmed); 80 NB SCH 10S (OD 88.9 × 3.05) is about 6.6 kg/m, so 722 mm ≈ 4.75 kg" },
   { tab: SH, row: 21, name: "PLATE (OD 1704)", qty: 1, type: "disc", inputs: { dia: 1704, thk: 5 }, wb: { finish: 91.21978694 }, status: "match", note: "Workbook puts the disc weight in Process; app process is the 1704 × 1704 square sheet" },
   { tab: SH, row: 22, name: "ANGLE", qty: 2, type: "angle-custom", inputs: { width: 75, thk: 6, length: 300 }, wb: { process: 4.32 }, status: "match" },
   { tab: SH, row: 23, name: "FLAT (FOR FLANGE)", qty: 1, type: "ring-flange", inputs: { od: 412, id: 314, thk: 6 }, wb: { process: 8.147712 }, status: "match", note: "Ring flange from flat; process = OD × OD square as in the workbook" },
@@ -90,19 +90,19 @@ export const GOLDEN_ROWS: GoldenRow[] = [
   { tab: ST, row: 14, name: "SQ TUBE (150X150)", qty: 2, type: "rect-tube", inputs: { a: 150, b: 150, thk: 3, length: 4697 }, wb: { finish: 132.568128 }, status: "match", note: "Typed std kg/m 14.112 = 2·t·(A+B−2t)·8/1000 exactly" },
   { tab: ST, row: 15, name: "CHQ PLATE", qty: 1, type: "plate", inputs: { length: 3005, width: 2665, thk: 4, thkAllowance: 0.5 }, wb: { process: 288.2997 }, status: "match", note: "Chequered plate: THK + 0.5" },
   { tab: ST, row: 16, name: "CHQ PLATE", qty: 1, type: "plate", inputs: { length: 3119, width: 2665, thk: 4, thkAllowance: 0.5 }, wb: { process: 299.23686 }, status: "match" },
-  { tab: ST, row: 17, name: "PLATE", qty: 2, type: "plate", inputs: { length: 130, width: 40, thk: 4, thkAllowance: 0.5 }, wb: { process: 0.3744 }, status: "check", note: "Plain plate but the workbook adds 0.5 mm (copied from the CHQ row?)" },
+  { tab: ST, row: 17, name: "PLATE", qty: 2, type: "plate", inputs: { length: 130, width: 40, thk: 4 }, wb: { process: 0.3744 }, status: "fixed", note: "Workbook added 0.5 mm to a plain plate by mistake (confirmed by Shubham)" },
   { tab: ST, row: 18, name: "ROUND BAR", qty: 4, type: "round-bar", inputs: { dia: 20, length: 600 }, wb: { process: 6.031857895 }, status: "match" },
   { tab: ST, row: 19, name: "ROUND BAR", qty: 16, type: "round-bar", inputs: { dia: 20, length: 400 }, wb: { process: 16.08495439 }, status: "match" },
   { tab: ST, row: 20, name: "ROUND BAR", qty: 13, type: "round-bar", inputs: { dia: 20, length: 400 }, status: "missing", note: "No weight in the workbook" },
   { tab: ST, row: 22, name: "FLAT", qty: 5, type: "flat", inputs: { width: 50, thk: 6, length: 2227 }, wb: { process: 26.724 }, status: "match" },
   { tab: ST, row: 23, name: "CHQ PLATE", qty: 1, type: "plate", inputs: { length: 3000, width: 2665, thk: 4, thkAllowance: 0.5 }, wb: { process: 287.82 }, status: "match" },
   { tab: ST, row: 24, name: "PIPE 20 NB CLASS B", qty: 2, type: "pipe-is1239", inputs: { nb: "20", cls: "M", length: 2700 }, wb: { process: 8.54 }, status: "typed", note: "Typed 4.27 × 2; IS 1239 Medium 20 NB gives 1.59 kg/m at density 8" },
-  { tab: ST, row: 25, name: "PLATE", qty: 2, type: "plate", inputs: { length: 40, width: 40, thk: 4, thkAllowance: 0.5 }, wb: { process: 0.1152 }, status: "check", note: "Plain plate but the workbook adds 0.5 mm" },
+  { tab: ST, row: 25, name: "PLATE", qty: 2, type: "plate", inputs: { length: 40, width: 40, thk: 4 }, wb: { process: 0.1152 }, status: "fixed", note: "Workbook added 0.5 mm to a plain plate by mistake (confirmed)" },
   { tab: ST, row: 26, name: "PLATE", qty: 37, type: "plate", inputs: { length: 100, width: 40, thk: 6 }, wb: { process: 7.104 }, status: "match" },
   { tab: ST, row: 28, name: "FLAT", qty: 1, type: "flat", inputs: { width: 80, thk: 6, length: 22000 }, wb: { process: 84.48 }, status: "match" },
   { tab: ST, row: 32, name: "ELBOW 20 NB 90°", qty: 4, type: "bought-misc", inputs: {}, status: "bought" },
   { tab: ST, row: 35, name: "SQ TUBE (150X100)", qty: 2, type: "rect-tube", inputs: { a: 150, b: 100, thk: 3, length: 2377 }, wb: { finish: 55.678848 }, status: "match" },
-  { tab: ST, row: 36, name: "FLAT", qty: 2, type: "plate", inputs: { length: 2210, width: 65, thk: 8, thkAllowance: 0.5 }, wb: { process: 19.5364 }, status: "check", note: "Flat but the workbook adds 0.5 mm" },
+  { tab: ST, row: 36, name: "FLAT", qty: 2, type: "flat", inputs: { width: 65, thk: 8, length: 2210 }, wb: { process: 19.5364 }, status: "fixed", note: "Workbook added 0.5 mm to a flat by mistake (confirmed)" },
   { tab: ST, row: 45, name: "SQ TUBE (100X100)", qty: 2, type: "rect-tube", inputs: { a: 100, b: 100, thk: 3, length: 2475 }, wb: { finish: 46.0944 }, status: "match" },
   { tab: ST, row: 52, name: "SQ TUBE (80X80)", qty: 1, type: "rect-tube", inputs: { a: 80, b: 80, thk: 3, length: 936 }, wb: { finish: 6.918912 }, status: "match" },
   { tab: ST, row: 67, name: "SQ TUBE (200X100)", qty: 2, type: "rect-tube", inputs: { a: 200, b: 100, thk: 3, length: 5875 }, wb: { finish: 165.816 }, status: "match" },
