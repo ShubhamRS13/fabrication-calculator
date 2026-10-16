@@ -180,7 +180,13 @@ export const structural: ItemType = {
   label: "Angle / channel / beam (ISA / ISMC / ISMB)",
   fields: [
     { key: "series", label: "Series", kind: "select", options: Object.keys(STRUCTURAL).map((v) => ({ value: v, label: v })) },
-    { key: "size", label: "Size", kind: "select", help: "Options depend on series" },
+    {
+      key: "size",
+      label: "Size",
+      kind: "select",
+      dependentOptions: (inp) =>
+        Object.keys(STRUCTURAL[str(inp, "series") as keyof typeof STRUCTURAL] ?? {}).map((v) => ({ value: v, label: v })),
+    },
     LENGTH,
   ],
   compute(inp, { density }) {

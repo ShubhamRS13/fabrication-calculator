@@ -30,6 +30,8 @@ export interface FieldDef {
   default?: InputValue;
   optional?: boolean;
   help?: string;
+  /** Options that depend on other inputs, e.g. sizes of the chosen series. */
+  dependentOptions?: (inputs: ItemInputs) => { value: string; label: string }[];
 }
 
 /** One flat panel of a multi-panel development (hopper, duct). */
