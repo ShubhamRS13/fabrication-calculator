@@ -60,17 +60,7 @@ function toInputs(t: ItemType, values: Values) {
   return { inputs, bad };
 }
 
-export function ItemEditor({
-  costingId,
-  backHref,
-  drawingId,
-  materials,
-  defaultMaterial,
-  assemblies,
-  customShapes,
-  item,
-  initialType,
-}: {
+interface ItemEditorProps {
   costingId: string;
   backHref: string;
   drawingId: string;
@@ -80,7 +70,30 @@ export function ItemEditor({
   customShapes: CustomShapeDef[];
   item?: EditorItem;
   initialType?: string;
-}) {
+}
+
+/**
+ * Next.js keeps pages you leave alive (React <Activity>), so without a reset the
+ * editor would reopen with the previous item's type and sizes. Keying on
+ * bfcacheId starts a fresh form on every "+ Add item" / "Edit" link, while the
+ * browser's Back button still restores a half-filled form.
+ */
+export function ItemEditor(props: ItemEditorProps) {
+  const { bfcacheId } = useRouter();
+  return <ItemEditorForm key={bfcacheId} {...props} />;
+}
+
+function ItemEditorForm({
+  costingId,
+  backHref,
+  drawingId,
+  materials,
+  defaultMaterial,
+  assemblies,
+  customShapes,
+  item,
+  initialType,
+}: ItemEditorProps) {
   const router = useRouter();
   const registry = useMemo(() => buildRegistry(customShapes), [customShapes]);
   const [typeId, setTypeId] = useState<string | undefined>(() => {

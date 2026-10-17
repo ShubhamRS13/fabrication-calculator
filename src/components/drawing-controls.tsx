@@ -88,7 +88,7 @@ export function AddAssemblyForm({ costingId, drawingId }: { costingId: string; d
   const form = useRef<HTMLFormElement>(null);
 
   function submit(fd: FormData) {
-    const qty = parseNum(String(fd.get("qty") ?? "1"));
+    const qty = parseNum(String(fd.get("qty") ?? ""));
     if (qty === null || Number.isNaN(qty) || qty <= 0) return setError("Quantity must be more than 0");
     start(async () => {
       const res = await addAssemblyAction(costingId, drawingId, { name: String(fd.get("name") ?? "").trim(), qty });
@@ -99,9 +99,9 @@ export function AddAssemblyForm({ costingId, drawingId }: { costingId: string; d
   }
 
   return (
-    <form ref={form} action={submit} className="grid grid-cols-[1fr_5rem] gap-2 px-4 py-3 sm:grid-cols-[1fr_6rem_auto]">
+    <form ref={form} action={submit} className="grid grid-cols-[1fr_7.5rem] gap-2 px-4 py-3 sm:grid-cols-[1fr_7.5rem_auto]">
       <Input name="name" required placeholder="Assembly name, e.g. Cyclone assembly" aria-label="Assembly name" />
-      <Input name="qty" inputMode="decimal" defaultValue="1" aria-label="Assembly quantity" />
+      <Input name="qty" required inputMode="decimal" placeholder="Qty, e.g. 1" aria-label="Assembly quantity" />
       <Button type="submit" disabled={pending} className="col-span-2 sm:col-span-1">+ Add assembly</Button>
       <div className="col-span-2 sm:col-span-3"><ErrorText>{error}</ErrorText></div>
     </form>
