@@ -96,6 +96,43 @@ describe("data layer", () => {
     expect(await dal.searchCostings(db, { q: "100%_" })).toEqual([]);
   });
 
+  it("numbers items per drawing, restarting in each assembly", async () => {
+    const { id, drawingId, asmId } = await sampleCosting();
+    // sampleCosting: pad plate (loose) → 1, disc (assembly) → 1, bolt (loose) → 2
+    const items = () => dal.getCostingTree(db, id).then((t) => t!.drawings[0].items);
+    const no = async (name: string) => (await items()).find((i) => i.name === name)!.itemNo;
+    expect(await no("PAD PLATE")).toBe("1");
+    expect(await no("PLATE (CIRCULAR)")).toBe("1");
+    expect(await no("HEX BOLT")).toBe("2");
+
+    await dal.addItem(db, drawingId, { itemNo: "19A", type: "plate", name: "RIB", qty: 1, inputs: {} });
+    await dal.addItem(db, drawingId, { type: "plate", name: "NEXT", qty: 1, inputs: {} });
+    expect(await no("RIB")).toBe("19A");
+    expect(await no("NEXT")).toBe("20");
+
+    await dal.addItem(db, drawingId, { type: "plate", name: "IN ASM", qty: 1, assemblyId: asmId, inputs: {} });
+    expect(await no("IN ASM")).toBe("2");
+
+    // Moving into the assembly without a number takes the assembly's next one.
+    const next = (await items()).find((i) => i.name === "NEXT")!;
+    await dal.updateItem(db, next.id, { assemblyId: asmId });
+    expect(await no("NEXT")).toBe("3");
+    // A number given explicitly is kept.
+    await dal.updateItem(db, next.id, { itemNo: "7", assemblyId: null });
+    expect(await no("NEXT")).toBe("7");
+
+    // Duplicate keeps the numbers.
+    const copyId = await dal.duplicateCosting(db, id);
+    const copy = (await dal.getCostingTree(db, copyId))!.drawings[0].items;
+    expect(copy.find((i) => i.name === "RIB")!.itemNo).toBe("19A");
+
+    // Deleting the assembly moves its items after the last loose number (19A, 7 → next is 20).
+    await dal.deleteAssembly(db, asmId);
+    const after = await items();
+    const moved = ["PLATE (CIRCULAR)", "IN ASM"].map((n) => after.find((i) => i.name === n)!.itemNo).sort();
+    expect(moved).toEqual(["20", "21"]);
+  });
+
   it("deleting a costing cascades", async () => {
     const { id } = await sampleCosting();
     await dal.deleteCosting(db, id);

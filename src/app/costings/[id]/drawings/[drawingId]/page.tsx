@@ -6,6 +6,7 @@ import { ButtonLink, Card, CardHeader, Empty, PageTitle, Skeleton, Stat } from "
 import type { ItemOutput } from "@/lib/calc/costing";
 import { buildRegistry } from "@/lib/calc/registry";
 import { inr, kg, num } from "@/lib/format";
+import { compareItemNo } from "@/lib/item-no";
 import { loadDrawing } from "@/server/load";
 import { getCustomShapes, getMaterials } from "@/server/queries";
 
@@ -24,12 +25,19 @@ async function Drawing({ params }: { params: Promise<{ id: string; drawingId: st
   const base = `/costings/${c.id}/drawings/${drawing.id}`;
   const label = (type: string) => registry.get(type)?.label ?? type;
 
-  const loose = out.items.filter((i) => !i.item.assemblyId);
-  const groups = drawing.assemblies.map((a) => ({ a, items: out.items.filter((i) => i.item.assemblyId === a.id) }));
+  const byNo = (x: ItemOutput, y: ItemOutput) => compareItemNo(x.item.itemNo ?? "", y.item.itemNo ?? "");
+  const loose = out.items.filter((i) => !i.item.assemblyId).sort(byNo);
+  const groups = drawing.assemblies.map((a) => ({ a, items: out.items.filter((i) => i.item.assemblyId === a.id).sort(byNo) }));
 
   const row = (it: ItemOutput) => (
     <li key={it.item.id}>
       <Link href={`${base}/items/${it.item.id}`} className="flex items-start gap-3 px-4 py-3 hover:bg-paper">
+        <span
+          className="mt-0.5 flex h-7 min-w-7 shrink-0 items-center justify-center rounded-full border border-ink px-1.5 text-xs font-semibold tabular-nums"
+          title="Item no."
+        >
+          {it.item.itemNo || "–"}
+        </span>
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium">
             {it.item.name}

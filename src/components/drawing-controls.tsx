@@ -125,7 +125,7 @@ export function AssemblyControls({ costingId, assembly }: { costingId: string; a
   }
 
   function remove() {
-    if (!confirm(`Remove assembly “${assembly.name}”? Its items stay on the drawing, ungrouped.`)) return;
+    if (!confirm(`Remove assembly “${assembly.name}”? Its items stay on the drawing, ungrouped, numbered after the last drawing item.`)) return;
     start(async () => {
       const res = await deleteAssemblyAction(costingId, assembly.id);
       if (!res.ok) setError(res.error);

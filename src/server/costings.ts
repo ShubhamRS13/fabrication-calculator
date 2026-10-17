@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, exists, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, exists, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import type { z } from "zod";
 import type { Db } from "@/db";
 import {
@@ -10,6 +10,7 @@ import {
 } from "@/lib/calc/costing";
 import type { CustomShapeDef } from "@/lib/calc/custom";
 import type { Material } from "@/lib/calc/types";
+import { nextItemNo } from "@/lib/item-no";
 import * as v from "./validation";
 
 // Data-access layer. Every function takes the database explicitly so tests can
@@ -206,14 +207,40 @@ export async function updateAssembly(db: Db, assemblyId: string, patch: z.input<
   await touch(db, await costingIdOfDrawing(db, row.drawingId));
 }
 
-/** Items in the assembly stay on the drawing, ungrouped. */
+/**
+ * Items in the assembly stay on the drawing, ungrouped. They are renumbered to
+ * continue after the drawing's loose items, so numbers do not clash.
+ */
 export async function deleteAssembly(db: Db, assemblyId: string) {
+  const members = await db
+    .select({ id: items.id })
+    .from(items)
+    .where(eq(items.assemblyId, assemblyId))
+    .orderBy(asc(items.sortOrder), asc(items.createdAt));
   const [row] = await db.delete(assemblies).where(eq(assemblies.id, assemblyId)).returning({ drawingId: assemblies.drawingId });
   if (!row) throw new NotFoundError("Assembly");
+  const memberIds = new Set(members.map((m) => m.id));
+  const loose = await db
+    .select({ id: items.id, itemNo: items.itemNo })
+    .from(items)
+    .where(and(eq(items.drawingId, row.drawingId), isNull(items.assemblyId)));
+  let next = Number(nextItemNo(loose.filter((l) => !memberIds.has(l.id)).map((l) => l.itemNo)));
+  for (const m of members) {
+    await db.update(items).set({ itemNo: String(next++) }).where(eq(items.id, m.id));
+  }
   await touch(db, await costingIdOfDrawing(db, row.drawingId));
 }
 
 // ---------- items ----------
+
+/** Next item number among the drawing's loose items, or within one assembly. */
+async function nextItemNoIn(db: Db, drawingId: string, assemblyId: string | null | undefined, excludeItemId?: string) {
+  const rows = await db
+    .select({ id: items.id, itemNo: items.itemNo })
+    .from(items)
+    .where(and(eq(items.drawingId, drawingId), assemblyId ? eq(items.assemblyId, assemblyId) : isNull(items.assemblyId)));
+  return nextItemNo(rows.filter((r) => r.id !== excludeItemId).map((r) => r.itemNo));
+}
 
 export async function addItem(db: Db, drawingId: string, data: v.ItemData) {
   const it = v.item.parse(data);
@@ -222,7 +249,8 @@ export async function addItem(db: Db, drawingId: string, data: v.ItemData) {
   const costingId = await costingIdOfDrawing(db, drawingId);
   await assertAssemblyInDrawing(db, it.assemblyId, drawingId);
   const sortOrder = await nextSort(db, items, eq(items.drawingId, drawingId));
-  const [row] = await db.insert(items).values({ drawingId, ...it, sortOrder }).returning({ id: items.id });
+  const itemNo = it.itemNo || (await nextItemNoIn(db, drawingId, it.assemblyId));
+  const [row] = await db.insert(items).values({ drawingId, ...it, itemNo, sortOrder }).returning({ id: items.id });
   await touch(db, costingId);
   return row.id;
 }
@@ -231,9 +259,17 @@ export async function updateItem(db: Db, itemId: string, patch: z.input<typeof v
   const it = v.itemPatch.parse(patch);
   if (it.type) await assertItemType(db, it.type);
   await assertMaterial(db, it.material);
-  const [current] = await db.select({ drawingId: items.drawingId }).from(items).where(eq(items.id, itemId));
+  const [current] = await db
+    .select({ drawingId: items.drawingId, assemblyId: items.assemblyId })
+    .from(items)
+    .where(eq(items.id, itemId));
   if (!current) throw new NotFoundError("Item");
   await assertAssemblyInDrawing(db, it.assemblyId, current.drawingId);
+  // Moved into or out of an assembly without a number given: take the next one there.
+  const moved = it.assemblyId !== undefined && (it.assemblyId ?? null) !== current.assemblyId;
+  if (it.itemNo === "" || (moved && it.itemNo === undefined)) {
+    it.itemNo = await nextItemNoIn(db, current.drawingId, it.assemblyId ?? current.assemblyId, itemId);
+  }
   await db.update(items).set(it).where(eq(items.id, itemId));
   await touch(db, await costingIdOfDrawing(db, current.drawingId));
 }
@@ -299,6 +335,7 @@ export function toCostingInput(tree: CostingTree, mats: Material[], shapes: Cust
       })),
       items: d.items.map((i) => ({
         id: i.id,
+        itemNo: i.itemNo,
         type: i.type,
         name: i.name,
         dwgSheet: i.dwgSheet,
@@ -377,6 +414,7 @@ export async function duplicateCosting(
           d.items.map((i) => ({
             drawingId: nd.id,
             assemblyId: i.assemblyId ? (asmMap.get(i.assemblyId) ?? null) : null,
+            itemNo: i.itemNo,
             type: i.type,
             name: i.name,
             dwgSheet: i.dwgSheet,

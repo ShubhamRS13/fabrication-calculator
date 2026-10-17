@@ -140,6 +140,8 @@ export const items = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     drawingId: uuid("drawing_id").notNull().references(() => drawings.id, { onDelete: "cascade" }),
     assemblyId: uuid("assembly_id").references(() => assemblies.id, { onDelete: "set null" }),
+    /** Balloon / Sr. no. on the drawing. Free text ("19A"); numbering restarts per assembly. */
+    itemNo: text("item_no").notNull().default(""),
     type: text("type").notNull(),
     name: text("name").notNull(),
     dwgSheet: text("dwg_sheet").notNull().default(""),

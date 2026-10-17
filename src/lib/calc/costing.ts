@@ -24,6 +24,8 @@ export interface MaterialRate {
 
 export interface ItemInput {
   id: string;
+  /** Balloon / Sr. no. on the drawing, e.g. "19A". */
+  itemNo?: string;
   type: string;
   name: string;
   dwgSheet?: string;

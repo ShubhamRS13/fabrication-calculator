@@ -7,6 +7,7 @@ import type { CustomShapeDef } from "@/lib/calc/custom";
 import { buildRegistry } from "@/lib/calc/registry";
 import type { FieldDef, InputValue, ItemCategory, ItemResult, ItemType, Material } from "@/lib/calc/types";
 import { inr, kg, num, parseNum } from "@/lib/format";
+import { nextItemNo } from "@/lib/item-no";
 import { DevelopmentSketch } from "./sketch";
 import { Button, Card, CardHeader, cx, ErrorText, Input, Label, Select, Stat } from "./ui";
 
@@ -22,6 +23,7 @@ type Values = Record<string, string | boolean>;
 
 export interface EditorItem {
   id: string;
+  itemNo: string;
   type: string;
   name: string;
   dwgSheet: string;
@@ -70,6 +72,8 @@ interface ItemEditorProps {
   customShapes: CustomShapeDef[];
   item?: EditorItem;
   initialType?: string;
+  /** Every item already on the drawing, for suggesting the next item number. */
+  siblings: { id: string; itemNo: string; assemblyId: string | null }[];
 }
 
 /**
@@ -93,6 +97,7 @@ function ItemEditorForm({
   customShapes,
   item,
   initialType,
+  siblings,
 }: ItemEditorProps) {
   const router = useRouter();
   const registry = useMemo(() => buildRegistry(customShapes), [customShapes]);
@@ -108,6 +113,24 @@ function ItemEditorForm({
   const [material, setMaterial] = useState(item?.material ?? "");
   const [assemblyId, setAssemblyId] = useState(item?.assemblyId ?? "");
   const [values, setValues] = useState<Values>(() => (type ? initialValues(type, item?.inputs) : {}));
+
+  // ---------- item number: restarts per assembly, always editable ----------
+  // Items saved with "Save & add another" count too, so the next suggestion moves on.
+  const [savedHere, setSavedHere] = useState<{ itemNo: string; assemblyId: string }[]>([]);
+  const numbersIn = (asmId: string) => [
+    ...siblings.filter((x) => (x.assemblyId ?? "") === asmId && x.id !== item?.id).map((x) => x.itemNo),
+    ...savedHere.filter((x) => x.assemblyId === asmId).map((x) => x.itemNo),
+  ];
+  const [itemNo, setItemNo] = useState(() => item?.itemNo || nextItemNo(numbersIn(item?.assemblyId ?? "")));
+  const [itemNoTyped, setItemNoTyped] = useState(false);
+  const itemNoTaken = numbersIn(assemblyId).some((n) => n.trim().toLowerCase() === itemNo.trim().toLowerCase() && n.trim() !== "");
+
+  function changeAssembly(id: string) {
+    setAssemblyId(id);
+    if (itemNoTyped) return;
+    // Back in its original group the item keeps its number; elsewhere it takes the next free one.
+    setItemNo(item && id === (item.assemblyId ?? "") ? item.itemNo : nextItemNo(numbersIn(id)));
+  }
   const [error, setError] = useState<string>();
   const [pending, start] = useTransition();
 
@@ -144,6 +167,7 @@ function ItemEditorForm({
     if (!name.trim()) return setError("Name is required");
     if (live.error) return setError(live.error);
     const payload = {
+      itemNo: itemNo.trim(),
       type: type.id,
       name: name.trim(),
       dwgSheet: dwgSheet.trim(),
@@ -159,6 +183,10 @@ function ItemEditorForm({
         : await addItemAction(costingId, drawingId, payload);
       if (!res.ok) return setError(res.error);
       if (another) {
+        const saved = { itemNo: payload.itemNo || nextItemNo(numbersIn(assemblyId)), assemblyId };
+        setSavedHere((s) => [...s, saved]);
+        setItemNo(nextItemNo([...numbersIn(assemblyId), saved.itemNo]));
+        setItemNoTyped(false);
         setName("");
         setValues(initialValues(type));
         setQty("1");
@@ -222,10 +250,29 @@ function ItemEditorForm({
             }
           />
           <div className="grid gap-3 p-4 sm:grid-cols-2">
-            <label className="block sm:col-span-2">
-              <Label>Name on drawing *</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. SHELL PLATE" autoFocus={!item} />
-            </label>
+            <div className="grid grid-cols-[6.5rem_1fr] gap-3 sm:col-span-2">
+              <label className="block">
+                <Label>Item no.</Label>
+                <Input
+                  value={itemNo}
+                  onChange={(e) => {
+                    setItemNo(e.target.value);
+                    setItemNoTyped(true);
+                  }}
+                  placeholder="auto"
+                  aria-describedby={itemNoTaken ? "item-no-taken" : undefined}
+                />
+              </label>
+              <label className="block">
+                <Label>Name on drawing *</Label>
+                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. SHELL PLATE" autoFocus={!item} />
+              </label>
+              {itemNoTaken && (
+                <p id="item-no-taken" className="col-span-2 -mt-1 text-sm text-accent">
+                  No. {itemNo.trim()} is already used {assemblyId ? "in this assembly" : "on this drawing"}.
+                </p>
+              )}
+            </div>
             <label className="block">
               <Label>Qty *</Label>
               <Input inputMode="decimal" value={qty} onChange={(e) => setQty(e.target.value)} />
@@ -246,7 +293,7 @@ function ItemEditorForm({
             {assemblies.length > 0 && (
               <label className="block">
                 <Label>Assembly</Label>
-                <Select value={assemblyId} onChange={(e) => setAssemblyId(e.target.value)}>
+                <Select value={assemblyId} onChange={(e) => changeAssembly(e.target.value)}>
                   <option value="">None</option>
                   {assemblies.map((a) => <option key={a.id} value={a.id}>{a.name} × {num(a.qty)}</option>)}
                 </Select>

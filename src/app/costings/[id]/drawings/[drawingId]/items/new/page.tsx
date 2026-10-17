@@ -34,6 +34,7 @@ async function NewItem({
         defaultMaterial={drawing.material ?? tree.costing.defaultMaterial}
         assemblies={drawing.assemblies.map(({ id, name, qty, material }) => ({ id, name, qty, material }))}
         customShapes={shapes}
+        siblings={drawing.items.map(({ id, itemNo, assemblyId }) => ({ id, itemNo, assemblyId }))}
         initialType={typeof sp.type === "string" ? sp.type : undefined}
       />
     </>

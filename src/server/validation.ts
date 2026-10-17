@@ -63,6 +63,8 @@ export const assemblyPatch = assembly.partial();
 const inputValue = z.union([z.number().finite(), z.string().max(200), z.boolean()]);
 
 export const item = z.object({
+  /** Blank = next number in the drawing or assembly. */
+  itemNo: text(20).optional(),
   type: z.string().trim().min(1).max(80),
   name: text().min(1, "Name is required"),
   dwgSheet: text(40).default(""),

@@ -31,8 +31,10 @@ async function EditItem({ params }: { params: Promise<{ id: string; drawingId: s
         defaultMaterial={drawing.material ?? tree.costing.defaultMaterial}
         assemblies={drawing.assemblies.map(({ id, name, qty, material }) => ({ id, name, qty, material }))}
         customShapes={shapes}
+        siblings={drawing.items.map(({ id, itemNo, assemblyId }) => ({ id, itemNo, assemblyId }))}
         item={{
           id: item.id,
+          itemNo: item.itemNo,
           type: item.type,
           name: item.name,
           dwgSheet: item.dwgSheet,
