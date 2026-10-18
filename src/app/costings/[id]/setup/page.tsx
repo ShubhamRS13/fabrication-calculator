@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { ChargeLinesEditor } from "@/components/charge-lines-editor";
 import { CostingHeaderForm } from "@/components/costing-header-form";
 import { RatesEditor } from "@/components/rates-editor";
-import { Card, CardHeader, PageTitle, Skeleton } from "@/components/ui";
+import { ButtonLink, Card, CardHeader, PageTitle, Skeleton } from "@/components/ui";
 import { getMaterials } from "@/server/queries";
 import { loadCosting } from "@/server/load";
 
@@ -50,7 +50,11 @@ async function Setup({ params }: { params: Promise<{ id: string }> }) {
         </Card>
         <div className="grid gap-4 lg:grid-cols-[22rem_1fr]">
           <Card>
-            <CardHeader title="Material rates" sub="Saved when you leave a field" />
+            <CardHeader
+              title="Material rates"
+              sub="Saved when you leave a field"
+              action={<ButtonLink href={`/costings/${c.id}/rates`} className="h-8 px-2.5">Size rates →</ButtonLink>}
+            />
             <RatesEditor costingId={c.id} rows={rates} />
           </Card>
           <Card>

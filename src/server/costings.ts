@@ -2,7 +2,7 @@ import { and, asc, desc, eq, exists, ilike, inArray, isNull, or, sql } from "dri
 import type { z } from "zod";
 import type { Db } from "@/db";
 import {
-  assemblies, chargeLines, costingMaterialRates, costings, customShapes, drawings, items, materials, sectionSizes,
+  assemblies, chargeLines, costingMaterialRates, costingSizeRates, costings, customShapes, drawings, items, materials, sectionSizes,
 } from "@/db/schema";
 import { BUILT_IN_TYPES } from "@/lib/calc/registry";
 import {
@@ -140,6 +140,21 @@ export async function setMaterialRate(db: Db, costingId: string, rate: z.input<t
     .onConflictDoUpdate({
       target: [costingMaterialRates.costingId, costingMaterialRates.material],
       set: { rate: data.rate, scrapRate: data.scrapRate },
+    });
+  await touch(db, costingId);
+}
+
+/** Size-wise rate (pipes, sections…); a blank rate means "use the material rate". */
+export async function setSizeRate(db: Db, costingId: string, input: z.input<typeof v.sizeRate>) {
+  const data = v.sizeRate.parse(input);
+  const [c] = await db.select({ id: costings.id }).from(costings).where(eq(costings.id, costingId));
+  if (!c) throw new NotFoundError("Costing");
+  await db
+    .insert(costingSizeRates)
+    .values({ costingId, ...data })
+    .onConflictDoUpdate({
+      target: [costingSizeRates.costingId, costingSizeRates.key],
+      set: { rate: data.rate, unit: data.unit, label: data.label },
     });
   await touch(db, costingId);
 }
@@ -292,8 +307,9 @@ export async function deleteItem(db: Db, itemId: string) {
 export async function getCostingTree(db: Db, costingId: string) {
   const [costing] = await db.select().from(costings).where(eq(costings.id, costingId));
   if (!costing) return null;
-  const [rates, lines, dws] = await Promise.all([
+  const [rates, sizeRates, lines, dws] = await Promise.all([
     db.select().from(costingMaterialRates).where(eq(costingMaterialRates.costingId, costingId)),
+    db.select().from(costingSizeRates).where(eq(costingSizeRates.costingId, costingId)),
     db.select().from(chargeLines).where(eq(chargeLines.costingId, costingId)).orderBy(asc(chargeLines.sortOrder)),
     db.select().from(drawings).where(eq(drawings.costingId, costingId)).orderBy(asc(drawings.sortOrder), asc(drawings.createdAt)),
   ]);
@@ -307,6 +323,7 @@ export async function getCostingTree(db: Db, costingId: string) {
   return {
     costing,
     rates,
+    sizeRates,
     chargeLines: lines,
     drawings: dws.map((d) => ({
       ...d,
@@ -329,6 +346,7 @@ export function toCostingInput(tree: CostingTree, mats: Material[], shapes: Cust
     customShapes: shapes,
     sections,
     rates: Object.fromEntries(tree.rates.map((r) => [r.material, { rate: r.rate, scrapRate: r.scrapRate }])),
+    sizeRates: Object.fromEntries(tree.sizeRates.map((r) => [r.key, { rate: r.rate, unit: r.unit }])),
     chargeLines: tree.chargeLines.map((l) => ({
       id: l.id, name: l.name, rate: l.rate, basis: l.basis, appliesTo: l.appliesTo as AppliesTo,
     })),
@@ -402,6 +420,11 @@ export async function duplicateCosting(
     if (tree.rates.length) {
       await tx.insert(costingMaterialRates).values(
         tree.rates.map((r) => ({ costingId: copy.id, material: r.material, rate: r.rate, scrapRate: r.scrapRate })),
+      );
+    }
+    if (tree.sizeRates.length) {
+      await tx.insert(costingSizeRates).values(
+        tree.sizeRates.map(({ key, label, rate, unit }) => ({ costingId: copy.id, key, label, rate, unit })),
       );
     }
     if (tree.chargeLines.length) {

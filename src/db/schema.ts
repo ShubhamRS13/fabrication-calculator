@@ -88,6 +88,25 @@ export const costingMaterialRates = pgTable(
   (t) => [primaryKey({ columns: [t.costingId, t.material] })],
 );
 
+export const sizeRateUnit = pgEnum("size_rate_unit", ["kg", "m", "piece"]);
+
+/**
+ * Size-wise rates for one costing (pipes, tubes, bars, rolled sections, flats):
+ * key = material + size, e.g. "SS304|Pipe 50 NB SCH 40". Blank rate = use the
+ * material ₹/kg rate.
+ */
+export const costingSizeRates = pgTable(
+  "costing_size_rates",
+  {
+    costingId: uuid("costing_id").notNull().references(() => costings.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    label: text("label").notNull(),
+    rate: doublePrecision("rate"),
+    unit: sizeRateUnit("unit").notNull().default("kg"),
+  },
+  (t) => [primaryKey({ columns: [t.costingId, t.key] })],
+);
+
 export const chargeBasis = pgEnum("charge_basis", ["process", "finish"]);
 
 export const chargeLines = pgTable(

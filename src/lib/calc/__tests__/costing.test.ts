@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeCosting, defaultChargeLines, type CostingInput } from "../costing";
+import { computeCosting, defaultChargeLines, sizeRateRows, type CostingInput } from "../costing";
 import { DEFAULT_MATERIALS } from "../materials";
 
 function baseCosting(): CostingInput {
@@ -128,5 +128,65 @@ describe("costing engine", () => {
     const out = computeCosting(c);
     expect(out.subtotal).toBeCloseTo(2 * out.drawings[0].total, 9);
     expect(out.byMaterial.find((t) => t.material === "MS")!.process).toBeCloseTo(157, 9);
+  });
+});
+
+describe("size-wise rates", () => {
+  function pipes(): CostingInput {
+    return {
+      defaultMaterial: "SS304",
+      burningPct: 3,
+      profitPct: 0,
+      materials: DEFAULT_MATERIALS,
+      rates: { SS304: { rate: 220, scrapRate: 110 } },
+      chargeLines: [],
+      drawings: [
+        {
+          id: "d",
+          drawingNo: "P-01",
+          title: "Pipes",
+          items: [
+            { id: "a", type: "pipe-sch", name: "50 NB", qty: 2, inputs: { sch: "10S", nb: "50", length: 3000 } },
+            { id: "b", type: "pipe-sch", name: "50 NB again", qty: 1, inputs: { sch: "10S", nb: "50", length: 1000 } },
+            { id: "c", type: "pipe-sch", name: "25 NB", qty: 1, inputs: { sch: "10S", nb: "25", length: 1000 } },
+          ],
+        },
+      ],
+    };
+  }
+
+  it("blank size rate falls back to the material rate", () => {
+    const out = computeCosting(pipes());
+    const it = out.drawings[0].items[0];
+    expect(it.sizeKey).toBe("SS304|Pipe 50 NB SCH 10S");
+    expect(it.pricedBy).toBe("material");
+    expect(it.materialAmount).toBeCloseTo(it.processWt * 1.03 * 220, 9);
+  });
+
+  it("₹/m, ₹/kg and ₹/piece; different sizes get different rates", () => {
+    const c = pipes();
+    c.sizeRates = { "SS304|Pipe 50 NB SCH 10S": { rate: 900, unit: "m" }, "SS304|Pipe 25 NB SCH 10S": { rate: 400, unit: "kg" } };
+    const items = computeCosting(c).drawings[0].items;
+    expect(items[0].materialAmount).toBeCloseTo(6 * 900, 9); // 2 × 3 m
+    expect(items[1].materialAmount).toBeCloseTo(1 * 900, 9);
+    expect(items[2].materialAmount).toBeCloseTo(items[2].processWt * 1.03 * 400, 9);
+    c.sizeRates["SS304|Pipe 50 NB SCH 10S"] = { rate: 2500, unit: "piece" };
+    expect(computeCosting(c).drawings[0].items[0].materialAmount).toBeCloseTo(2 * 2500, 9);
+  });
+
+  it("rate chart rows group by size across items", () => {
+    const rows = sizeRateRows(computeCosting(pipes()));
+    expect(rows.map((r) => r.label)).toEqual(["Pipe 25 NB SCH 10S", "Pipe 50 NB SCH 10S"]);
+    const p50 = rows[1];
+    expect(p50.m).toBeCloseTo(7, 9);
+    expect(p50.pieces).toBe(3);
+    expect(p50.drawings).toEqual(["P-01"]);
+  });
+
+  it("drawing material total uses the size rate", () => {
+    const c = pipes();
+    c.sizeRates = { "SS304|Pipe 50 NB SCH 10S": { rate: 900, unit: "m" } };
+    const d = computeCosting(c).drawings[0];
+    expect(d.materialTotal).toBeCloseTo(7 * 900 + d.items[2].materialAmount, 9);
   });
 });

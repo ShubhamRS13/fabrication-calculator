@@ -154,6 +154,21 @@ describe("data layer", () => {
     expect((await dal.loadSectionLibrary(db)).kgPerM.ISMC["100"]).toBe(9.56);
   });
 
+  it("size rates price pipes per metre and are copied by duplicate", async () => {
+    const id = await dal.createCosting(db, { clientName: "Pipes", projectName: "Size rates", defaultMaterial: "SS304" });
+    const d = await dal.addDrawing(db, id, { drawingNo: "SR-1" });
+    await dal.addItem(db, d, { type: "pipe-sch", name: "PIPE", qty: 2, inputs: { sch: "40", nb: "50", length: 1500 } });
+    await dal.setSizeRate(db, id, { key: "SS304|Pipe 50 NB SCH 40", label: "Pipe 50 NB SCH 40", rate: 1200, unit: "m" });
+    const out = (await dal.computeCostingById(db, id))!;
+    expect(out.result.drawings[0].items[0].materialAmount).toBeCloseTo(3 * 1200, 9);
+    const copy = (await dal.computeCostingById(db, await dal.duplicateCosting(db, id)))!;
+    expect(copy.tree.sizeRates).toHaveLength(1);
+    expect(copy.result.drawings[0].items[0].materialAmount).toBeCloseTo(3600, 9);
+    // Back to blank: material rate applies again (none set → 0).
+    await dal.setSizeRate(db, id, { key: "SS304|Pipe 50 NB SCH 40", label: "Pipe 50 NB SCH 40", rate: null, unit: "m" });
+    expect((await dal.computeCostingById(db, id))!.result.drawings[0].items[0].pricedBy).toBe("material");
+  });
+
   it("deleting a costing cascades", async () => {
     const { id } = await sampleCosting();
     await dal.deleteCosting(db, id);

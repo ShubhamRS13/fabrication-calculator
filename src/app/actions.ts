@@ -55,6 +55,13 @@ export async function setMaterialRateAction(
   return run(() => dal.setMaterialRate(getDb(), v.id.parse(costingId), rate), [costingPath(costingId)]);
 }
 
+export async function setSizeRateAction(
+  costingId: string,
+  rate: { key: string; label: string; rate: number | null; unit: "kg" | "m" | "piece" },
+) {
+  return run(() => dal.setSizeRate(getDb(), v.id.parse(costingId), rate), [costingPath(costingId)]);
+}
+
 // ---------- charge lines ----------
 
 type ChargeLineData = { name: string; rate: number | null; basis: "process" | "finish"; appliesTo: string };

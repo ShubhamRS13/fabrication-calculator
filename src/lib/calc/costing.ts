@@ -23,6 +23,17 @@ export interface MaterialRate {
   scrapRate: number | null;
 }
 
+export type SizeRateUnit = "kg" | "m" | "piece";
+
+/** A size-wise rate, e.g. ₹/m for "SS304|Pipe 50 NB SCH 40". Blank rate = use the material rate. */
+export interface SizeRate {
+  rate: number | null;
+  unit: SizeRateUnit;
+}
+
+/** Size key: material + size label, so the same size in two materials gets two rates. */
+export const sizeKey = (material: string, label: string) => `${material}|${label}`;
+
 export interface ItemInput {
   id: string;
   /** Balloon / Sr. no. on the drawing, e.g. "19A". */
@@ -67,6 +78,8 @@ export interface CostingInput {
   customShapes?: CustomShapeDef[];
   /** Section & pipe tables (from Settings); built-in tables when absent. */
   sections?: SectionLibrary;
+  /** Size-wise rates for this costing, by size key. */
+  sizeRates?: Record<string, SizeRate>;
 }
 
 // ---------- Outputs ----------
@@ -89,6 +102,13 @@ export interface ItemOutput {
   scrapCredit: number;
   /** bought price / job work × multiplier */
   fixedAmount: number;
+  /** Size-wise rate key and label (sections), when the type has one. */
+  sizeKey?: string;
+  sizeLabel?: string;
+  /** How the material amount was priced. */
+  pricedBy?: "material" | SizeRateUnit;
+  /** Total cut length, m (sections). */
+  lengthM?: number;
 }
 
 export interface MaterialTotals {
@@ -154,7 +174,16 @@ function addTotals(into: MaterialTotals, t: MaterialTotals) {
 
 export function computeItem(
   item: ItemInput,
-  ctx: { type?: ItemType; material: string; materials: Material[]; burningPct: number; multiplier: number; rate: MaterialRate | undefined; sections?: SectionLibrary },
+  ctx: {
+    type?: ItemType;
+    material: string;
+    materials: Material[];
+    burningPct: number;
+    multiplier: number;
+    rate: MaterialRate | undefined;
+    sections?: SectionLibrary;
+    sizeRates?: Record<string, SizeRate>;
+  },
 ): ItemOutput {
   const out: ItemOutput = {
     item, material: ctx.material, burningPct: ctx.burningPct, multiplier: ctx.multiplier, unit: null,
@@ -175,10 +204,25 @@ export function computeItem(
   out.processWt = unit.processWt * n;
   out.scrap = unit.scrap * n;
   out.fixedAmount = unit.fixedCost * n;
+  if (unit.cutLength !== undefined) out.lengthM = (unit.cutLength * n) / 1000;
+  if (ctx.type.sizeLabel) {
+    out.sizeLabel = ctx.type.sizeLabel(item.inputs);
+    out.sizeKey = sizeKey(ctx.material, out.sizeLabel);
+  }
   if (unit.costedByWeight) {
     out.burning = (out.processWt * ctx.burningPct) / 100;
-    out.materialAmount = (out.processWt + out.burning) * (ctx.rate?.rate ?? 0);
     out.scrapCredit = out.scrap * (ctx.rate?.scrapRate ?? 0);
+    const sr = out.sizeKey ? ctx.sizeRates?.[out.sizeKey] : undefined;
+    if (sr && sr.rate !== null) {
+      // Size-wise rate: ₹/kg works like the material rate (burning included);
+      // ₹/m and ₹/piece price the cut lengths / pieces directly.
+      out.pricedBy = sr.unit;
+      out.materialAmount =
+        sr.unit === "kg" ? (out.processWt + out.burning) * sr.rate : sr.unit === "m" ? (out.lengthM ?? 0) * sr.rate : n * sr.rate;
+    } else {
+      out.pricedBy = "material";
+      out.materialAmount = (out.processWt + out.burning) * (ctx.rate?.rate ?? 0);
+    }
   }
   return out;
 }
@@ -197,6 +241,7 @@ export function computeDrawing(d: DrawingInput, c: CostingInput, registry: Map<s
       multiplier: item.qty * (asm?.qty ?? 1),
       rate: c.rates[material],
       sections: c.sections,
+      sizeRates: c.sizeRates,
     });
   });
 
@@ -262,4 +307,35 @@ export function defaultChargeLines(): ChargeLine[] {
     { id: "polishing", name: "Polishing", rate: null, basis: "finish", appliesTo: "SS" },
     { id: "packaging", name: "Packaging", rate: null, basis: "finish", appliesTo: "ALL" },
   ];
+}
+
+export interface SizeRateRow {
+  key: string;
+  label: string;
+  material: string;
+  /** process kg incl. all quantities */
+  kg: number;
+  m: number;
+  pieces: number;
+  /** what these items cost now (size rate or material rate) */
+  amount: number;
+  drawings: string[];
+}
+
+/** Every distinct size in the costing, for the rate chart. */
+export function sizeRateRows(out: CostingOutput): SizeRateRow[] {
+  const rows = new Map<string, SizeRateRow>();
+  for (const d of out.drawings) {
+    for (const it of d.items) {
+      if (!it.sizeKey || !it.unit || it.error) continue;
+      const r = rows.get(it.sizeKey) ?? { key: it.sizeKey, label: it.sizeLabel!, material: it.material, kg: 0, m: 0, pieces: 0, amount: 0, drawings: [] };
+      r.kg += it.processWt;
+      r.m += it.lengthM ?? 0;
+      r.pieces += it.multiplier;
+      r.amount += it.materialAmount;
+      if (!r.drawings.includes(d.drawing.drawingNo)) r.drawings.push(d.drawing.drawingNo);
+      rows.set(it.sizeKey, r);
+    }
+  }
+  return [...rows.values()].sort((a, b) => a.material.localeCompare(b.material) || a.label.localeCompare(b.label, undefined, { numeric: true }));
 }

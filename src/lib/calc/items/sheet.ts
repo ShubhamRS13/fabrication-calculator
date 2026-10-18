@@ -48,6 +48,7 @@ export const flat: ItemType = {
   label: "Flat",
   description: "A flat bar cut to length (e.g. 50 × 10). No scrap: process weight = finish weight.",
   formulaText: ["kg/m = W × t × ρ / 1000", "Weight = kg/m × L / 1000"],
+  sizeLabel: (i) => `Flat ${String(i.width ?? "")} × ${String(i.thk ?? "")}`,
   fields: [
     { key: "width", label: "Width W", kind: "number", unit: "mm" },
     THK,
@@ -63,6 +64,7 @@ export const flat: ItemType = {
         steps: [`Flat ${f(w)} × ${f(t)}, kg/m = ${f(w)} × ${f(t)} × ${f(density)} / 1000 = ${f(kpm)}`],
       }),
       kgPerM: kpm,
+      cutLength: L,
     };
   },
 };

@@ -30,6 +30,7 @@ async function Overview({ params }: { params: Promise<{ id: string }> }) {
         action={
           <>
             <ButtonLink href={`${base}/setup`}>Rates & setup</ButtonLink>
+            <ButtonLink href={`${base}/rates`}>Size rate chart</ButtonLink>
             <ButtonLink href={`${base}/summary`} variant="primary">Summary</ButtonLink>
           </>
         }

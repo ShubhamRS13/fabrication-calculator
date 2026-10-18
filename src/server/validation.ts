@@ -29,6 +29,13 @@ export const materialRate = z.object({
   scrapRate: z.number().finite().min(0).nullable(),
 });
 
+export const sizeRate = z.object({
+  key: z.string().trim().min(1).max(200),
+  label: z.string().trim().min(1).max(200),
+  rate: z.number().finite().min(0).nullable(),
+  unit: z.enum(["kg", "m", "piece"]),
+});
+
 export const appliesTo = z.union([
   z.literal("ALL"),
   z.literal("SS"),

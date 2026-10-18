@@ -101,6 +101,8 @@ export interface ItemResult {
   sheetL?: number;
   sheetW?: number;
   kgPerM?: number;
+  /** Cut length per piece, mm (sections), for ₹/m rates. */
+  cutLength?: number;
   /** Marking dimensions of the development, e.g. R1, R2, theta. */
   development?: Record<string, number>;
   /** Fixed ₹ per unit (bought price, job-work charge). */
@@ -133,6 +135,11 @@ export interface ItemType {
   description?: string;
   /** Symbolic formula lines, using the letters on the reference diagram. */
   formulaText?: string[];
+  /**
+   * Size name for the size-wise rate chart, e.g. "Pipe 50 NB SCH 40". Items of the
+   * same material and size share one rate. Absent = priced by material ₹/kg only.
+   */
+  sizeLabel?: (inputs: ItemInputs) => string;
   fields: FieldDef[];
   compute(inputs: ItemInputs, ctx: CalcContext): ItemResult;
 }
