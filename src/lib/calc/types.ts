@@ -32,6 +32,8 @@ export interface FieldDef {
   help?: string;
   /** Options that depend on other inputs, e.g. sizes of the chosen series. */
   dependentOptions?: (inputs: ItemInputs) => { value: string; label: string }[];
+  /** Show the field only when this returns true (e.g. rolling allowance only for "from flat"). */
+  showIf?: (inputs: ItemInputs) => boolean;
 }
 
 // ---------- Flat-pattern development ----------

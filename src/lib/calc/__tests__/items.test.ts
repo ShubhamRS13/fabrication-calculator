@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { bentPlate, disc, plate, rectFlange, ringFlange } from "../items/sheet";
+import { bentPlate, disc, flat, plate, rectFlange, ringFlange } from "../items/sheet";
 import { cone, fanBoundingBox, shell } from "../items/round";
 import { pyramidHopper, rectDuct } from "../items/panels";
-import { angleCustom, flat, pipeCustom, pipeSch, pipeSwg, rectTube, roundBar, structural } from "../items/sections";
+import { angleCustom, pipeCustom, pipeSch, pipeSwg, rectTube, roundBar, structural } from "../items/sections";
 import { boughtMisc, dishedEnd } from "../items/bought";
 import { CalcError } from "../types";
 import * as WB from "./workbook-lambdas";

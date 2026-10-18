@@ -235,3 +235,31 @@ describe("flange mass report", () => {
     expect(r.dev!.pieces[0].holes).toHaveLength(9);
   });
 });
+
+describe("ring flange made from flat", () => {
+  const base = { od: 412, id: 314, thk: 6 };
+
+  it("finish is the same ring; process is the flat strip plus rolling allowance", () => {
+    const sheet = ringFlange.compute(base, SS);
+    const rolled = ringFlange.compute({ ...base, madeFrom: "flat", allowance: 120 }, SS);
+    expect(rolled.finishWt).toBeCloseTo(sheet.finishWt, 9);
+    const W = (412 - 314) / 2;
+    const L = Math.PI * (412 + 314) / 2;
+    expect(rolled.development!.flatWidth).toBe(W);
+    expect(rolled.development!.flatLength).toBeCloseTo(L, 9);
+    expect(rolled.processWt).toBeCloseTo(kgOf(W * (L + 120), 6), 9);
+    expect(rolled.sheetL).toBeCloseTo(L + 120, 9);
+    // Without allowance the strip is exactly the ring: no scrap.
+    expect(ringFlange.compute({ ...base, madeFrom: "flat", allowance: 0 }, SS).scrap).toBeCloseTo(0, 9);
+  });
+
+  it("needs an ID", () => {
+    expect(() => ringFlange.compute({ od: 400, thk: 6, madeFrom: "flat" }, SS)).toThrow(CalcError);
+  });
+
+  it("the allowance field only shows for 'from flat'", () => {
+    const f = ringFlange.fields.find((x) => x.key === "allowance")!;
+    expect(f.showIf!({ madeFrom: "flat" })).toBe(true);
+    expect(f.showIf!({ madeFrom: "sheet" })).toBe(false);
+  });
+});

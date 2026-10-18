@@ -291,6 +291,15 @@ const DIAGRAMS: Record<string, () => ReactNode> = {
       <DimV y1={60} y2={150} x={22} label="W" from={[40, 40]} />
     </Svg>
   ),
+  flat: () => (
+    <Svg label="Flat: width W, thickness t, cut length L">
+      <Shape d="M24,92 L196,92 L196,118 L24,118 Z" />
+      <Shape d="M24,92 L36,80 L208,80 L196,92 M196,118 L208,106 L208,80" fill={false} />
+      <DimH x1={24} x2={196} y={142} label="L" from={[118, 118]} />
+      <DimV y1={92} y2={118} x={12} label="W" from={[24, 24]} />
+      <Label x={214} y={98} a="end">t</Label>
+    </Svg>
+  ),
   "bent-plate": () => (
     <Svg label="Bent plate: girth is the sum of the legs, length L">
       <Shape d="M60,60 L60,140 L160,140 L160,60" fill={false} />

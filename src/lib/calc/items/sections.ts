@@ -130,24 +130,6 @@ export const rectTube: ItemType = {
   },
 };
 
-export const flat: ItemType = {
-  id: "flat",
-  category: "section",
-  label: "Flat",
-  fields: [
-    { key: "width", label: "Width", kind: "number", unit: "mm" },
-    { key: "thk", label: "THK", kind: "number", unit: "mm" },
-    LENGTH,
-  ],
-  compute(inp, { density }) {
-    const w = pos(inp, "width", "Width");
-    const t = pos(inp, "thk", "THK");
-    const L = pos(inp, "length", "Cut length");
-    const kpm = (w * t * density) / 1000;
-    return lengthResult(kpm, L, `kg/m = ${f(w)} × ${f(t)} × ${f(density)} / 1000 = ${f(kpm)}`);
-  },
-};
-
 export const roundBar: ItemType = {
   id: "round-bar",
   category: "section",

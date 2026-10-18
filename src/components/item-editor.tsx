@@ -329,9 +329,11 @@ function ItemEditorForm({
             </div>
           )}
           <div className="grid gap-3 p-4 sm:grid-cols-2">
-            {type.fields.map((f) => (
-              <FieldInput key={f.key} field={f} values={values} onChange={(v) => setValues((s) => ({ ...s, [f.key]: v }))} />
-            ))}
+            {type.fields
+              .filter((f) => !f.showIf || f.showIf(values as Record<string, InputValue>))
+              .map((f) => (
+                <FieldInput key={f.key} field={f} values={values} onChange={(v) => setValues((s) => ({ ...s, [f.key]: v }))} />
+              ))}
           </div>
         </Card>
 
@@ -480,6 +482,7 @@ const DEV_LABELS: Record<string, string> = {
   height: "Height", shortest: "Shortest line", longest: "Longest line", offset: "Offset e", cutRadius: "Cut radius Rc",
   depth: "Dish depth", meridian: "Meridian length", blankDia: "Blank dia", holeOnBlank: "Hole dia on blank",
   OD: "OD", ID: "ID", PCD: "PCD", hA: "Panel A true height", hB: "Panel B true height",
+  flatWidth: "Flat width W", flatLength: "Flat length π × Dm", cutLength: "Cut length incl. allowance",
 };
 const devLabel = (k: string) => DEV_LABELS[k] ?? k;
 

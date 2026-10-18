@@ -1,19 +1,19 @@
 import type { ItemType } from "./types";
-import { bentPlate, disc, plate, rectFlange, ringFlange } from "./items/sheet";
+import { bentPlate, disc, flat, plate, rectFlange, ringFlange } from "./items/sheet";
 import { CONE_TYPES } from "./items/cones";
 import { CYLINDER_TYPES } from "./items/cylinders";
 import { DISH_TYPES } from "./items/dish-ends";
 import { pyramidHopper, rectDuct } from "./items/panels";
 import {
-  angleCustom, flat, pipeCustom, pipeIs1239, pipeSch, pipeSwg, rectTube, roundBar, squareBar, structural,
+  angleCustom, pipeCustom, pipeIs1239, pipeSch, pipeSwg, rectTube, roundBar, squareBar, structural,
 } from "./items/sections";
 import { boughtDish, boughtFlange, boughtMisc, dishedEnd } from "./items/bought";
 import { makeCustomItemType, type CustomShapeDef } from "./custom";
 
 export const BUILT_IN_TYPES: ItemType[] = [
   ...CYLINDER_TYPES, ...CONE_TYPES, ...DISH_TYPES,
-  plate, disc, ringFlange, rectFlange, pyramidHopper, rectDuct, bentPlate,
-  pipeSch, pipeIs1239, pipeSwg, pipeCustom, rectTube, flat, roundBar, squareBar, structural, angleCustom,
+  plate, flat, disc, ringFlange, rectFlange, pyramidHopper, rectDuct, bentPlate,
+  pipeSch, pipeIs1239, pipeSwg, pipeCustom, rectTube, roundBar, squareBar, structural, angleCustom,
   boughtFlange, boughtDish, boughtMisc, dishedEnd,
 ];
 

@@ -1,4 +1,4 @@
-import { CalcError, type FieldDef, type ItemType, type Pt } from "../types";
+import { CalcError, type FieldDef, type ItemInputs, type ItemType, type Pt } from "../types";
 import { f, optNum, pos } from "../helpers";
 import { circle, polar, rect } from "../dev/geometry";
 import { devResult } from "../dev/result";
@@ -37,6 +37,36 @@ export const plate: ItemType = {
   },
 };
 
+/**
+ * A flat bar cut to length. Listed with plates so flats are easy to tell apart
+ * from plate and sheet; still cut to length, so process = finish (no scrap).
+ */
+export const flat: ItemType = {
+  id: "flat",
+  category: "fabricated",
+  family: FAMILY,
+  label: "Flat",
+  description: "A flat bar cut to length (e.g. 50 × 10). No scrap: process weight = finish weight.",
+  formulaText: ["kg/m = W × t × ρ / 1000", "Weight = kg/m × L / 1000"],
+  fields: [
+    { key: "width", label: "Width W", kind: "number", unit: "mm" },
+    THK,
+    { key: "length", label: "Cut length L", kind: "number", unit: "mm" },
+  ],
+  compute(inp, { density }) {
+    const w = pos(inp, "width", "Width");
+    const t = pos(inp, "thk", "THK");
+    const L = pos(inp, "length", "Cut length");
+    const kpm = (w * t * density) / 1000;
+    return {
+      ...devResult({ pieces: [{ name: "Flat", count: 1, outline: rect(0, 0, L, w) }] }, t, density, {
+        steps: [`Flat ${f(w)} × ${f(t)}, kg/m = ${f(w)} × ${f(t)} × ${f(density)} / 1000 = ${f(kpm)}`],
+      }),
+      kgPerM: kpm,
+    };
+  },
+};
+
 export const disc: ItemType = {
   id: "disc",
   category: "fabricated",
@@ -69,17 +99,43 @@ export const disc: ItemType = {
   },
 };
 
+const fromFlat = (inp: ItemInputs) => inp.madeFrom === "flat";
+
 export const ringFlange: ItemType = {
   id: "ring-flange",
   category: "fabricated",
   family: FAMILY,
   label: "Ring / circular flange",
-  description: "A ring cut from plate, with optional bolt holes on a PCD.",
-  formulaText: ["Finish = (π (OD² − ID²) / 4 − n × π h² / 4) × t × ρ / 1e6", "Process = OD × OD × t × ρ / 1e6"],
+  description: "A ring with optional bolt holes on a PCD. Cut from sheet, or rolled from a flat (with a rolling allowance).",
+  formulaText: [
+    "Finish = (π (OD² − ID²) / 4 − n × π h² / 4) × t × ρ / 1e6",
+    "From sheet: Process = OD × OD × t × ρ / 1e6",
+    "From flat: W = (OD − ID) / 2,  L = π × (OD + ID) / 2",
+    "From flat: Process = W × (L + allowance) × t × ρ / 1e6",
+  ],
   fields: [
+    {
+      key: "madeFrom",
+      label: "Made from",
+      kind: "select",
+      options: [
+        { value: "sheet", label: "Sheet / plate (cut ring)" },
+        { value: "flat", label: "Flat (rolled ring)" },
+      ],
+      default: "sheet",
+    },
     { key: "od", label: "OD", kind: "number", unit: "mm" },
     { key: "id", label: "ID", kind: "number", unit: "mm" },
     THK,
+    {
+      key: "allowance",
+      label: "Rolling allowance",
+      kind: "number",
+      unit: "mm",
+      default: 100,
+      help: "Usually 100–150 mm; added to process weight",
+      showIf: fromFlat,
+    },
     { key: "pcd", label: "PCD", kind: "number", unit: "mm", optional: true },
     { key: "holes", label: "No. of holes n", kind: "number", unit: "nos", optional: true },
     { key: "holeDia", label: "Hole dia h", kind: "number", unit: "mm", optional: true },
@@ -92,13 +148,63 @@ export const ringFlange: ItemType = {
     const n = Math.max(0, Math.round(optNum(inp, "holes")));
     const hd = optNum(inp, "holeDia");
     const pcdIn = optNum(inp, "pcd");
-    // Without a PCD the holes still count in the weight; draw them mid-ring.
     const pcd = pcdIn || (OD + ID) / 2;
     if (n && hd && (pcd + hd > OD || pcd - hd < ID)) throw new CalcError("Bolt holes do not fit between ID and OD");
+    const area = (Math.PI * (OD * OD - ID * ID)) / 4 - (n * Math.PI * hd * hd) / 4;
+    const holeText = n && hd ? `, ${n} holes Ø${f(hd)}` : "";
+
+    if (fromFlat(inp)) {
+      if (ID <= 0) throw new CalcError("A ring rolled from flat needs an ID");
+      const allowance = optNum(inp, "allowance");
+      if (allowance < 0) throw new CalcError("Rolling allowance cannot be negative");
+      const W = (OD - ID) / 2;
+      const Dm = (OD + ID) / 2;
+      const L = Math.PI * Dm;
+      const total = L + allowance;
+      // Strip includes the allowance; the actual ring is the finish weight.
+      const outline: Pt[] = rect(0, 0, total, W);
+      const marks: [Pt, Pt][] = [];
+      if (allowance > 0) {
+        marks.push([[allowance / 2, 0], [allowance / 2, W]]);
+        marks.push([[allowance / 2 + L, 0], [allowance / 2 + L, W]]);
+      }
+      return devResult(
+        {
+          pieces: [
+            {
+              name: "Flat for ring",
+              count: 1,
+              outline,
+              marks,
+              dims: [
+                {
+                  kind: "linear",
+                  label: `π × Dm = ${f(L, 1)}${allowance > 0 ? ` (+ ${f(allowance, 0)} allowance)` : ""}`,
+                  from: [allowance / 2, 0],
+                  to: [allowance / 2 + L, 0],
+                  offset: -Math.max(W * 1.5, total * 0.05),
+                },
+              ],
+              exactArea: area,
+              exactPerimeter: 2 * (L + W),
+            },
+          ],
+        },
+        t,
+        density,
+        {
+          steps: [
+            `Rolled from flat: W = (${f(OD)} − ${f(ID)}) / 2 = ${f(W)} mm, Dm = ${f(Dm)} mm`,
+            `Flat length L = π × ${f(Dm)} = ${f(L)} mm, + allowance ${f(allowance)} = ${f(total)} mm${holeText}`,
+          ],
+          development: { flatWidth: W, flatLength: L, cutLength: total, OD, ID, ...(pcdIn ? { PCD: pcdIn } : {}) },
+        },
+      );
+    }
+
     const c: Pt = [OD / 2, OD / 2];
     const holes = [...(ID > 0 ? [circle(c, ID / 2)] : [])];
     if (n && hd) for (let i = 0; i < n; i++) holes.push(circle(polar(c, pcd / 2, (2 * Math.PI * (i + 0.5)) / n), hd / 2, 48));
-    const area = (Math.PI * (OD * OD - ID * ID)) / 4 - (n * Math.PI * hd * hd) / 4;
     return devResult(
       {
         pieces: [
@@ -120,7 +226,7 @@ export const ringFlange: ItemType = {
       t,
       density,
       {
-        steps: [`Ring Ø${f(OD)} / Ø${f(ID)}${n && hd ? `, ${n} holes Ø${f(hd)}` : ""}`],
+        steps: [`Cut from sheet: ring Ø${f(OD)} / Ø${f(ID)}${holeText}`],
         development: { OD, ID, ...(pcdIn ? { PCD: pcdIn } : {}) },
       },
     );
