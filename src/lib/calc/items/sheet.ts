@@ -1,15 +1,21 @@
-import { CalcError, type FieldDef, type ItemType } from "../types";
-import { f, kg, optNum, pos, weightResult } from "../helpers";
+import { CalcError, type FieldDef, type ItemType, type Pt } from "../types";
+import { f, optNum, pos } from "../helpers";
+import { circle, polar, rect } from "../dev/geometry";
+import { devResult } from "../dev/result";
 
 const THK: FieldDef = { key: "thk", label: "THK", kind: "number", unit: "mm" };
+const FAMILY = "Plates & flanges";
 
 export const plate: ItemType = {
   id: "plate",
   category: "fabricated",
+  family: FAMILY,
   label: "Plate / sheet (rectangular)",
+  description: "A flat rectangle cut from sheet or plate.",
+  formulaText: ["Weight = L × W × (t + allowance) × ρ / 1e6"],
   fields: [
-    { key: "length", label: "Length", kind: "number", unit: "mm" },
-    { key: "width", label: "Width", kind: "number", unit: "mm" },
+    { key: "length", label: "Length L", kind: "number", unit: "mm" },
+    { key: "width", label: "Width W", kind: "number", unit: "mm" },
     THK,
     {
       key: "thkAllowance",
@@ -25,15 +31,8 @@ export const plate: ItemType = {
     const W = pos(inp, "width", "Width");
     const t = pos(inp, "thk", "THK");
     const allowance = optNum(inp, "thkAllowance");
-    const tw = t + allowance;
-    const wt = kg(L * W * tw, density);
-    const thkText = allowance ? `(${f(t)} + ${f(allowance)})` : f(t);
-    return weightResult({
-      finishWt: wt,
-      processWt: wt,
-      sheetL: L,
-      sheetW: W,
-      formula: `${f(L)} × ${f(W)} × ${thkText} × ${f(density)} / 1e6 = ${f(wt)} kg`,
+    return devResult({ pieces: [{ name: "Plate", count: 1, outline: rect(0, 0, L, W) }] }, t + allowance, density, {
+      steps: [allowance ? `Weight thickness = ${f(t)} + ${f(allowance)} = ${f(t + allowance)} mm` : `${f(L)} × ${f(W)} × ${f(t)} mm`],
     });
   },
 };
@@ -41,66 +40,100 @@ export const plate: ItemType = {
 export const disc: ItemType = {
   id: "disc",
   category: "fabricated",
+  family: FAMILY,
   label: "Circular disc / blank",
-  fields: [{ key: "dia", label: "Diameter", kind: "number", unit: "mm" }, THK],
+  description: "A full circle cut from a square of plate.",
+  formulaText: ["Finish = π D² / 4 × t × ρ / 1e6", "Process = D × D × t × ρ / 1e6"],
+  fields: [{ key: "dia", label: "Diameter D", kind: "number", unit: "mm" }, THK],
   compute(inp, { density }) {
     const D = pos(inp, "dia", "Diameter");
     const t = pos(inp, "thk", "THK");
-    const finish = kg(((Math.PI * D * D) / 4) * t, density);
-    const process = kg(D * D * t, density);
-    return weightResult({
-      finishWt: finish,
-      processWt: process,
-      sheetL: D,
-      sheetW: D,
-      formula:
-        `Finish = π × ${f(D)}² / 4 × ${f(t)} × ${f(density)} / 1e6 = ${f(finish)} kg\n` +
-        `Process = ${f(D)} × ${f(D)} × ${f(t)} × ${f(density)} / 1e6 = ${f(process)} kg`,
-    });
+    const c: Pt = [D / 2, D / 2];
+    return devResult(
+      {
+        pieces: [
+          {
+            name: "Disc",
+            count: 1,
+            outline: circle(c, D / 2),
+            dims: [{ kind: "radius", label: `Ø${f(D, 1)}`, center: c, to: polar(c, D / 2, Math.PI / 4) }],
+            exactArea: (Math.PI * D * D) / 4,
+            exactPerimeter: Math.PI * D,
+          },
+        ],
+      },
+      t,
+      density,
+      { steps: [`Disc Ø${f(D)} in a ${f(D)} × ${f(D)} square`] },
+    );
   },
 };
 
 export const ringFlange: ItemType = {
   id: "ring-flange",
   category: "fabricated",
+  family: FAMILY,
   label: "Ring / circular flange",
+  description: "A ring cut from plate, with optional bolt holes on a PCD.",
+  formulaText: ["Finish = (π (OD² − ID²) / 4 − n × π h² / 4) × t × ρ / 1e6", "Process = OD × OD × t × ρ / 1e6"],
   fields: [
     { key: "od", label: "OD", kind: "number", unit: "mm" },
     { key: "id", label: "ID", kind: "number", unit: "mm" },
     THK,
     { key: "pcd", label: "PCD", kind: "number", unit: "mm", optional: true },
-    { key: "holes", label: "No. of holes", kind: "number", unit: "nos", optional: true },
-    { key: "holeDia", label: "Hole dia", kind: "number", unit: "mm", optional: true },
+    { key: "holes", label: "No. of holes n", kind: "number", unit: "nos", optional: true },
+    { key: "holeDia", label: "Hole dia h", kind: "number", unit: "mm", optional: true },
   ],
   compute(inp, { density }) {
     const OD = pos(inp, "od", "OD");
     const ID = optNum(inp, "id");
     const t = pos(inp, "thk", "THK");
     if (ID < 0 || ID >= OD) throw new CalcError("ID must be smaller than OD");
-    const holes = optNum(inp, "holes");
+    const n = Math.max(0, Math.round(optNum(inp, "holes")));
     const hd = optNum(inp, "holeDia");
-    const ringArea = (Math.PI * (OD * OD - ID * ID)) / 4;
-    const holeArea = (holes * Math.PI * hd * hd) / 4;
-    const finish = kg((ringArea - holeArea) * t, density);
-    const process = kg(OD * OD * t, density);
-    const holeText = holes && hd ? ` − ${f(holes)} × π × ${f(hd)}² / 4` : "";
-    return weightResult({
-      finishWt: finish,
-      processWt: process,
-      sheetL: OD,
-      sheetW: OD,
-      development: { OD, ID, ...(optNum(inp, "pcd") ? { PCD: optNum(inp, "pcd") } : {}) },
-      formula:
-        `Finish = (π × (${f(OD)}² − ${f(ID)}²) / 4${holeText}) × ${f(t)} × ${f(density)} / 1e6 = ${f(finish)} kg\n` +
-        `Process = ${f(OD)} × ${f(OD)} × ${f(t)} × ${f(density)} / 1e6 = ${f(process)} kg`,
-    });
+    const pcdIn = optNum(inp, "pcd");
+    // Without a PCD the holes still count in the weight; draw them mid-ring.
+    const pcd = pcdIn || (OD + ID) / 2;
+    if (n && hd && (pcd + hd > OD || pcd - hd < ID)) throw new CalcError("Bolt holes do not fit between ID and OD");
+    const c: Pt = [OD / 2, OD / 2];
+    const holes = [...(ID > 0 ? [circle(c, ID / 2)] : [])];
+    if (n && hd) for (let i = 0; i < n; i++) holes.push(circle(polar(c, pcd / 2, (2 * Math.PI * (i + 0.5)) / n), hd / 2, 48));
+    const area = (Math.PI * (OD * OD - ID * ID)) / 4 - (n * Math.PI * hd * hd) / 4;
+    return devResult(
+      {
+        pieces: [
+          {
+            name: "Flange",
+            count: 1,
+            outline: circle(c, OD / 2),
+            holes,
+            dims: [
+              { kind: "radius", label: `OD ${f(OD, 1)}`, center: c, to: polar(c, OD / 2, Math.PI / 4) },
+              ...(ID > 0 ? [{ kind: "radius" as const, label: `ID ${f(ID, 1)}`, center: c, to: polar(c, ID / 2, -Math.PI / 4) }] : []),
+              ...(pcdIn ? [{ kind: "text" as const, label: `PCD ${f(pcdIn, 1)}, ${n} × Ø${f(hd, 1)}`, at: [OD / 2, -OD * 0.06] as Pt }] : []),
+            ],
+            exactArea: area,
+            exactPerimeter: Math.PI * (OD + ID + n * hd),
+          },
+        ],
+      },
+      t,
+      density,
+      {
+        steps: [`Ring Ø${f(OD)} / Ø${f(ID)}${n && hd ? `, ${n} holes Ø${f(hd)}` : ""}`],
+        development: { OD, ID, ...(pcdIn ? { PCD: pcdIn } : {}) },
+      },
+    );
   },
 };
 
 export const rectFlange: ItemType = {
   id: "rect-flange",
   category: "fabricated",
+  family: FAMILY,
   label: "Rectangular flange / frame",
+  description: "A rectangular frame: outer rectangle with a centred rectangular opening.",
+  formulaText: ["Finish = (L × W − l × w) × t × ρ / 1e6", "Process = L × W × t × ρ / 1e6"],
   fields: [
     { key: "length", label: "Outer L", kind: "number", unit: "mm" },
     { key: "width", label: "Outer W", kind: "number", unit: "mm" },
@@ -115,40 +148,43 @@ export const rectFlange: ItemType = {
     const w = optNum(inp, "innerW");
     const t = pos(inp, "thk", "THK");
     if (l >= L || w >= W) throw new CalcError("Inner size must be smaller than outer size");
-    const finish = kg((L * W - l * w) * t, density);
-    const process = kg(L * W * t, density);
-    return weightResult({
-      finishWt: finish,
-      processWt: process,
-      sheetL: L,
-      sheetW: W,
-      formula:
-        `Finish = (${f(L)} × ${f(W)} − ${f(l)} × ${f(w)}) × ${f(t)} × ${f(density)} / 1e6 = ${f(finish)} kg\n` +
-        `Process = ${f(L)} × ${f(W)} × ${f(t)} × ${f(density)} / 1e6 = ${f(process)} kg`,
-    });
+    return devResult(
+      {
+        pieces: [
+          {
+            name: "Frame",
+            count: 1,
+            outline: rect(0, 0, L, W),
+            holes: l > 0 && w > 0 ? [rect((L - l) / 2, (W - w) / 2, l, w)] : [],
+            dims: l > 0 && w > 0 ? [{ kind: "text", label: `${f(l, 1)} × ${f(w, 1)}`, at: [L / 2, W / 2] }] : [],
+          },
+        ],
+      },
+      t,
+      density,
+      { steps: [`Outer ${f(L)} × ${f(W)}, inner ${f(l)} × ${f(w)}`] },
+    );
   },
 };
 
 export const bentPlate: ItemType = {
   id: "bent-plate",
   category: "fabricated",
+  family: FAMILY,
   label: "Bent plate / formed channel",
+  description: "A plate bent to shape; the flat width is the girth (sum of the legs).",
+  formulaText: ["Weight = girth × L × t × ρ / 1e6"],
   fields: [
     { key: "girth", label: "Girth (sum of legs)", kind: "number", unit: "mm" },
-    { key: "length", label: "Length", kind: "number", unit: "mm" },
+    { key: "length", label: "Length L", kind: "number", unit: "mm" },
     THK,
   ],
   compute(inp, { density }) {
     const g = pos(inp, "girth", "Girth");
     const L = pos(inp, "length", "Length");
     const t = pos(inp, "thk", "THK");
-    const wt = kg(g * L * t, density);
-    return weightResult({
-      finishWt: wt,
-      processWt: wt,
-      sheetL: L,
-      sheetW: g,
-      formula: `${f(g)} × ${f(L)} × ${f(t)} × ${f(density)} / 1e6 = ${f(wt)} kg`,
+    return devResult({ pieces: [{ name: "Bent plate", count: 1, outline: rect(0, 0, L, g) }] }, t, density, {
+      steps: [`Flat ${f(L)} × girth ${f(g)} mm`],
     });
   },
 };

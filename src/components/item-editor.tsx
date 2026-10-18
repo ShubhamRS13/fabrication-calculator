@@ -8,6 +8,7 @@ import { buildRegistry } from "@/lib/calc/registry";
 import type { FieldDef, InputValue, ItemCategory, ItemResult, ItemType, Material } from "@/lib/calc/types";
 import { inr, kg, num, parseNum } from "@/lib/format";
 import { nextItemNo } from "@/lib/item-no";
+import { ReferenceDiagram, TypeTile, hasDiagram } from "./diagrams";
 import { DevelopmentSketch } from "./sketch";
 import { Button, Card, CardHeader, cx, ErrorText, Input, Label, Select, Stat } from "./ui";
 
@@ -213,20 +214,33 @@ function ItemEditorForm({
         {CATEGORIES.map((cat) => {
           const types = [...registry.values()].filter((t) => t.category === cat.id);
           if (!types.length) return null;
+          // Group by family (Cylinders, Cones, Vessel end caps…), keeping registry order.
+          const families = [...new Set(types.map((t) => t.family ?? ""))];
           return (
             <Card key={cat.id}>
               <CardHeader title={cat.label} />
-              <div className="grid gap-2 p-3 sm:grid-cols-2 lg:grid-cols-3">
-                {types.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => pickType(t)}
-                    className="rounded-lg border border-line bg-white px-3 py-3 text-left text-sm font-medium hover:border-ink"
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
+              {families.map((fam) => (
+                <div key={fam} className="border-t border-line first:border-t-0">
+                  {fam && <h3 className="px-4 pt-3 text-xs font-semibold uppercase tracking-wide text-muted">{fam}</h3>}
+                  <div className="grid gap-2 p-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {types
+                      .filter((t) => (t.family ?? "") === fam)
+                      .map((t) => (
+                        <button
+                          key={t.id}
+                          onClick={() => pickType(t)}
+                          className="flex items-center gap-3 rounded-lg border border-line bg-white p-2.5 text-left hover:border-ink"
+                        >
+                          <TypeTile typeId={t.id} />
+                          <span className="min-w-0">
+                            <span className="block text-sm font-medium leading-snug">{t.label}</span>
+                            {t.description && <span className="mt-0.5 line-clamp-2 block text-xs text-muted">{t.description}</span>}
+                          </span>
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              ))}
             </Card>
           );
         })}
@@ -303,7 +317,17 @@ function ItemEditorForm({
         </Card>
 
         <Card>
-          <CardHeader title="Sizes" sub="All lengths in mm" />
+          <CardHeader title="Sizes" sub="All lengths in mm; letters match the drawing" />
+          {(hasDiagram(type.id) || type.description) && (
+            <div className="grid items-center gap-3 border-b border-line p-4 sm:grid-cols-[15rem_1fr]">
+              {hasDiagram(type.id) && (
+                <div className="mx-auto w-full max-w-60 rounded-lg border border-line bg-white p-1">
+                  <ReferenceDiagram typeId={type.id} />
+                </div>
+              )}
+              {type.description && <p className="text-sm text-muted">{type.description}</p>}
+            </div>
+          )}
           <div className="grid gap-3 p-4 sm:grid-cols-2">
             {type.fields.map((f) => (
               <FieldInput key={f.key} field={f} values={values} onChange={(v) => setValues((s) => ({ ...s, [f.key]: v }))} />
@@ -343,36 +367,119 @@ function ItemEditorForm({
               </>
             )}
           </div>
+          {type.formulaText && (
+            <details className="border-t border-line">
+              <summary className="cursor-pointer px-4 py-3 text-sm font-medium">Formula</summary>
+              <div className="px-4 pb-4">
+                {hasDiagram(type.id) && (
+                  <div className="mx-auto mb-2 max-w-52">
+                    <ReferenceDiagram typeId={type.id} />
+                  </div>
+                )}
+                <ul className="space-y-1 font-mono text-xs leading-relaxed">
+                  {type.formulaText.map((line) => <li key={line}>{line}</li>)}
+                </ul>
+                <p className="mt-2 text-xs text-muted">t = thickness, ρ = density (g/cc). Weights in kg, lengths in mm.</p>
+              </div>
+            </details>
+          )}
           {r && (
             <details className="border-t border-line">
-              <summary className="cursor-pointer px-4 py-3 text-sm font-medium">Show formula</summary>
+              <summary className="cursor-pointer px-4 py-3 text-sm font-medium">Show calculation</summary>
               <pre className="overflow-x-auto whitespace-pre-wrap px-4 pb-4 font-mono text-xs leading-relaxed text-ink">{r.formula}</pre>
             </details>
           )}
         </Card>
-        {r && !isBought && (
-          <SketchCard typeId={type.id} result={r} inputs={live?.inputs ?? {}} />
+        {r?.dev && !isBought && (
+          <Card>
+            <CardHeader title="Development" sub="Flat pattern; dashed frame = ideal sheet, mm" />
+            <div className="p-3">
+              <DevelopmentSketch dev={r.dev} />
+            </div>
+            {r.markTable && <MarkTableView table={r.markTable} />}
+          </Card>
         )}
+        {r?.mass && !isBought && <MassCard r={r} multiplier={multiplier} />}
       </div>
     </div>
   );
 }
 
-function SketchCard(props: { typeId: string; result: ItemResult; inputs: Record<string, unknown> }) {
-  const sketch = DevelopmentSketch(props);
-  if (!sketch) return null;
+/** Plate'n'Sheets-style mass report: the sheet rectangle vs the actual shape. */
+function MassCard({ r, multiplier }: { r: ItemResult; multiplier: number }) {
+  const m = r.mass!;
+  const rows: [string, (x: typeof m.frame) => string][] = [
+    ["Area m²", (x) => num(x.area * multiplier)],
+    ["Perimeter mm", (x) => num(x.perimeter * multiplier)],
+    ["Mass kg", (x) => kg(x.mass * multiplier)],
+  ];
   return (
     <Card>
-      <CardHeader title="Development" sub="Marking dimensions in mm" />
-      <div className="p-3">{sketch}</div>
+      <CardHeader title="Mass report" sub={`For ${num(multiplier)} piece${multiplier === 1 ? "" : "s"}; perimeter = cutting length`} />
+      <table className="w-full text-sm tabular-nums">
+        <thead>
+          <tr className="text-right text-muted">
+            <th className="px-4 py-2 text-left font-medium"></th>
+            <th className="px-2 py-2 font-medium">Single rectangle</th>
+            <th className="px-4 py-2 font-medium">Actual shape</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(([label, get]) => (
+            <tr key={label} className="border-t border-line text-right">
+              <td className="px-4 py-1.5 text-left text-muted">{label}</td>
+              <td className="px-2 py-1.5">{get(m.frame)}</td>
+              <td className="px-4 py-1.5">{get(m.actual)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {m.pieces.length > 1 && (
+        <ul className="border-t border-line px-4 py-2 text-xs text-muted">
+          {m.pieces.map((p) => (
+            <li key={p.name}>
+              {p.name} × {p.count}: frame {num(p.frameW)} × {num(p.frameH)}, {kg(p.actual.mass / p.count)} kg each
+            </li>
+          ))}
+        </ul>
+      )}
+      {r.surfaceArea !== undefined && (
+        <p className="border-t border-line px-4 py-2 text-xs text-muted">True surface of the formed part: {num(r.surfaceArea / 1e6)} m² per piece.</p>
+      )}
     </Card>
   );
 }
 
+function MarkTableView({ table }: { table: NonNullable<ItemResult["markTable"]> }) {
+  return (
+    <details className="border-t border-line">
+      <summary className="cursor-pointer px-4 py-3 text-sm font-medium">{table.title}</summary>
+      <div className="max-h-72 overflow-auto px-2 pb-3">
+        <table className="w-full text-xs tabular-nums">
+          <thead className="sticky top-0 bg-white">
+            <tr className="text-right text-muted">
+              {table.columns.map((c) => <th key={c} className="px-2 py-1 font-medium">{c}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {table.rows.map((row, i) => (
+              <tr key={i} className="border-t border-line text-right">
+                {row.map((v, j) => <td key={j} className="px-2 py-1">{j === 0 ? v : num(v)}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  );
+}
+
 const DEV_LABELS: Record<string, string> = {
-  Dm: "Mean dia Dm", Dm1: "Mean dia Dm1", Dm2: "Mean dia Dm2", length: "Development length", height: "Height",
-  slant: "Slant length", R1: "R1 (outer radius)", R2: "R2 (inner radius)", theta: "Angle θ", chord: "Chord",
-  blankDia: "Blank dia", OD: "OD", ID: "ID", PCD: "PCD",
+  Dm: "Mean dia Dm", Rb: "Mean base radius Rb", rt: "Mean top radius rt", apexHeight: "Apex height Ha", slant: "Slant to apex S",
+  R1: "R1 (outer radius)", R2: "R2 (inner radius)", theta: "Flat angle θ", chord: "Chord", girth: "Girth π × Dm",
+  height: "Height", shortest: "Shortest line", longest: "Longest line", offset: "Offset e", cutRadius: "Cut radius Rc",
+  depth: "Dish depth", meridian: "Meridian length", blankDia: "Blank dia", holeOnBlank: "Hole dia on blank",
+  OD: "OD", ID: "ID", PCD: "PCD", hA: "Panel A true height", hB: "Panel B true height",
 };
 const devLabel = (k: string) => DEV_LABELS[k] ?? k;
 

@@ -1,5 +1,7 @@
-import { CalcError, type ItemType } from "../types";
-import { f, kg, optNum, pos, str, weightResult } from "../helpers";
+import { CalcError, type ItemType, type Pt } from "../types";
+import { f, optNum, pos, str } from "../helpers";
+import { circle, polar } from "../dev/geometry";
+import { devResult } from "../dev/result";
 
 /** Bought items: priced qty × rate. Weight is optional and never costed by ₹/kg. */
 function boughtType(id: string, label: string, extraFields: ItemType["fields"]): ItemType {
@@ -59,7 +61,8 @@ export const DISH_BLANK_FACTOR: Record<string, number> = {
 export const dishedEnd: ItemType = {
   id: "dished-end",
   category: "outsourced",
-  label: "Dished end, large (third party)",
+  label: "Dished end – blank by factor (third party)",
+  description: "Quick estimate: blank ≈ factor × OD + 2 × straight face. Prefer the End cap types for an exact blank.",
   fields: [
     { key: "od", label: "Dish OD", kind: "number", unit: "mm" },
     { key: "thk", label: "THK", kind: "number", unit: "mm" },
@@ -89,23 +92,33 @@ export const dishedEnd: ItemType = {
     // With the blank entered directly, the dish OD is not needed.
     const od = givenBlank > 0 ? optNum(inp, "od") : pos(inp, "od", "Dish OD");
     const blank = givenBlank > 0 ? givenBlank : factor * od + 2 * sf;
-    const finish = kg(((Math.PI * blank * blank) / 4) * t, density);
-    const process = kg(blank * blank * t, density);
     const job = optNum(inp, "jobWork");
-    return weightResult({
-      finishWt: finish,
-      processWt: process,
-      sheetL: blank,
-      sheetW: blank,
-      fixedCost: job,
-      development: { blankDia: blank },
-      formula:
-        (givenBlank > 0
-          ? `Blank dia = ${f(blank)} mm (entered)\n`
-          : `Blank dia = ${f(factor)} × ${f(od)} + 2 × ${f(sf)} = ${f(blank)} mm\n`) +
-        `Finish = π × ${f(blank)}² / 4 × ${f(t)} × ${f(density)} / 1e6 = ${f(finish)} kg\n` +
-        `Process = ${f(blank)} × ${f(blank)} × ${f(t)} × ${f(density)} / 1e6 = ${f(process)} kg` +
-        (job ? `\nJob work = qty × ₹${f(job, 2)}` : ""),
-    });
+    const c: Pt = [blank / 2, blank / 2];
+    return devResult(
+      {
+        pieces: [
+          {
+            name: "Blank",
+            count: 1,
+            outline: circle(c, blank / 2),
+            dims: [{ kind: "radius", label: `Ø${f(blank, 1)}`, center: c, to: polar(c, blank / 2, Math.PI / 4) }],
+            exactArea: (Math.PI * blank * blank) / 4,
+            exactPerimeter: Math.PI * blank,
+          },
+        ],
+      },
+      t,
+      density,
+      {
+        steps: [
+          givenBlank > 0
+            ? `Blank dia = ${f(blank)} mm (entered)`
+            : `Blank dia = ${f(factor)} × ${f(od)} + 2 × ${f(sf)} = ${f(blank)} mm`,
+          ...(job ? [`Job work = qty × ₹${f(job, 2)}`] : []),
+        ],
+        development: { blankDia: blank },
+        fixedCost: job,
+      },
+    );
   },
 };

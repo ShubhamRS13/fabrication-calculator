@@ -34,19 +34,58 @@ export interface FieldDef {
   dependentOptions?: (inputs: ItemInputs) => { value: string; label: string }[];
 }
 
-/** One flat panel of a multi-panel development (hopper, duct). */
-export interface Panel {
+// ---------- Flat-pattern development ----------
+
+/** A point on the flat pattern, in mm. y points up. */
+export type Pt = [number, number];
+
+/** A labelled dimension drawn on the flat pattern. */
+export type DevDim =
+  | { kind: "radius"; label: string; center: Pt; to: Pt }
+  | { kind: "angle"; label: string; center: Pt; from: Pt; to: Pt; r: number }
+  | { kind: "linear"; label: string; from: Pt; to: Pt; offset?: number }
+  | { kind: "text"; label: string; at: Pt };
+
+/** One flat piece cut from sheet (count = pieces of this shape per item). */
+export interface DevPiece {
   name: string;
   count: number;
-  shape: "rectangle" | "trapezoid";
-  /** Trapezoid: top and bottom edges; rectangle: top = bottom = width. */
-  top: number;
-  bottom: number;
-  /** True (developed) height of the panel. */
-  height: number;
-  /** Ideal sheet rectangle for one panel. */
-  rectL: number;
-  rectW: number;
+  /** Closed outline, in order (last point joins the first). */
+  outline: Pt[];
+  holes?: Pt[][];
+  /** Marking lines (generators, bend lines). */
+  marks?: [Pt, Pt][];
+  dims?: DevDim[];
+  /** Exact area / cut length when a closed formula exists (the outline is a polyline approximation). */
+  exactArea?: number;
+  exactPerimeter?: number;
+}
+
+export interface Development {
+  pieces: DevPiece[];
+}
+
+/** Like Plate'n'Sheets' mass report: the sheet rectangle vs the actual shape. */
+export interface MassFigures {
+  /** m² */
+  area: number;
+  /** mm (cut length) */
+  perimeter: number;
+  /** kg */
+  mass: number;
+}
+
+export interface MassReport {
+  frame: MassFigures;
+  actual: MassFigures;
+  pieces: { name: string; count: number; frameW: number; frameH: number; frame: MassFigures; actual: MassFigures }[];
+}
+
+/** Shop-floor marking table, e.g. generator lengths at each division. */
+export interface MarkTable {
+  title: string;
+  columns: string[];
+  rows: number[][];
 }
 
 /** Result for ONE unit of an item. Quantity is applied by the costing engine. */
@@ -60,13 +99,18 @@ export interface ItemResult {
   kgPerM?: number;
   /** Marking dimensions of the development, e.g. R1, R2, theta. */
   development?: Record<string, number>;
-  panels?: Panel[];
   /** Fixed ₹ per unit (bought price, job-work charge). */
   fixedCost: number;
   /** false for bought items: weight shown but never costed by ₹/kg. */
   costedByWeight: boolean;
-  /** Human-readable formula with the numbers filled in. */
+  /** Human-readable calculation with the numbers filled in. */
   formula: string;
+  /** Flat pattern, when the item is cut from sheet. */
+  dev?: Development;
+  mass?: MassReport;
+  markTable?: MarkTable;
+  /** True surface area of the formed part, mm² (info; e.g. dish ends). */
+  surfaceArea?: number;
 }
 
 export interface CalcContext {
@@ -77,6 +121,12 @@ export interface ItemType {
   id: string;
   category: ItemCategory;
   label: string;
+  /** Family shown as a group in the item picker, e.g. "Cones". */
+  family?: string;
+  /** One or two sentences for the picker, like Plate'n'Sheets. */
+  description?: string;
+  /** Symbolic formula lines, using the letters on the reference diagram. */
+  formulaText?: string[];
   fields: FieldDef[];
   compute(inputs: ItemInputs, ctx: CalcContext): ItemResult;
 }

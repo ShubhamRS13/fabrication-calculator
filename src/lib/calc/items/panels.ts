@@ -1,44 +1,49 @@
-import { CalcError, type ItemType, type Panel } from "../types";
-import { bool, f, kg, pos, weightResult } from "../helpers";
+import { CalcError, type DevPiece, type ItemType, type Pt } from "../types";
+import { bool, f, pos } from "../helpers";
+import { rect } from "../dev/geometry";
+import { devResult } from "../dev/result";
 
-const panelArea = (p: Panel) => ((p.top + p.bottom) / 2) * p.height * p.count;
-const panelRectArea = (p: Panel) => p.rectL * p.rectW * p.count;
+const FAMILY = "Hoppers & ducts";
 
-function panelsResult(panels: Panel[], t: number, density: number) {
-  const finishArea = panels.reduce((a, p) => a + panelArea(p), 0);
-  const processArea = panels.reduce((a, p) => a + panelRectArea(p), 0);
-  const finish = kg(finishArea * t, density);
-  const process = kg(processArea * t, density);
-  const lines = panels.map(
-    (p) =>
-      `${p.name} × ${p.count}: ` +
-      (p.shape === "trapezoid"
-        ? `top ${f(p.top)}, bottom ${f(p.bottom)}, true height ${f(p.height)}`
-        : `${f(p.top)} × ${f(p.height)}`) +
-      ` → sheet ${f(p.rectL)} × ${f(p.rectW)}`,
-  );
-  return weightResult({
-    finishWt: finish,
-    processWt: process,
-    panels,
-    formula:
-      lines.join("\n") +
-      `\nFinish = ${f(finishArea)} mm² × ${f(t)} × ${f(density)} / 1e6 = ${f(finish)} kg` +
-      `\nProcess = ${f(processArea)} mm² × ${f(t)} × ${f(density)} / 1e6 = ${f(process)} kg`,
-  });
+/** Symmetric trapezoid with `top` above `bottom`, true height h. Frame = max(top, bottom) × h. */
+function trapezoid(name: string, count: number, top: number, bottom: number, h: number): DevPiece {
+  const m = Math.max(top, bottom);
+  const outline: Pt[] = [
+    [(m - bottom) / 2, 0],
+    [(m + bottom) / 2, 0],
+    [(m + top) / 2, h],
+    [(m - top) / 2, h],
+  ];
+  return {
+    name,
+    count,
+    outline,
+    dims: [
+      { kind: "linear", label: f(top, 1), from: outline[3], to: outline[2], offset: h * 0.08 },
+      { kind: "linear", label: f(bottom, 1), from: outline[0], to: outline[1], offset: -h * 0.08 },
+      { kind: "text", label: `h ${f(h, 1)}`, at: [m / 2, h / 2] },
+    ],
+  };
 }
 
 /** Rect-to-rect pyramid hopper, concentric. Process = each panel's bounding rectangle. */
 export const pyramidHopper: ItemType = {
   id: "pyramid-hopper",
   category: "fabricated",
+  family: FAMILY,
   label: "Pyramid hopper (rect to rect)",
+  description: "A rectangular hopper with a concentric rectangular outlet. Four flat trapezoid panels.",
+  formulaText: [
+    "Panel A (on the L sides): top L, bottom l, true height hA = √(H² + ((W − w)/2)²)",
+    "Panel B (on the W sides): top W, bottom w, true height hB = √(H² + ((L − l)/2)²)",
+    "Finish = 2 × (L + l)/2 × hA + 2 × (W + w)/2 × hB  (× t × ρ)",
+  ],
   fields: [
     { key: "topL", label: "Top L", kind: "number", unit: "mm" },
     { key: "topW", label: "Top W", kind: "number", unit: "mm" },
     { key: "botL", label: "Bottom l", kind: "number", unit: "mm" },
     { key: "botW", label: "Bottom w", kind: "number", unit: "mm" },
-    { key: "height", label: "Height", kind: "number", unit: "mm" },
+    { key: "height", label: "Height H", kind: "number", unit: "mm" },
     { key: "thk", label: "THK", kind: "number", unit: "mm" },
   ],
   compute(inp, { density }) {
@@ -51,11 +56,15 @@ export const pyramidHopper: ItemType = {
     // Panels on the L sides slope across the W difference, and vice versa.
     const hA = Math.hypot(H, (W - w) / 2);
     const hB = Math.hypot(H, (L - l) / 2);
-    const panels: Panel[] = [
-      { name: "Panel A (L side)", count: 2, shape: "trapezoid", top: L, bottom: l, height: hA, rectL: Math.max(L, l), rectW: hA },
-      { name: "Panel B (W side)", count: 2, shape: "trapezoid", top: W, bottom: w, height: hB, rectL: Math.max(W, w), rectW: hB },
-    ];
-    return panelsResult(panels, t, density);
+    return devResult(
+      { pieces: [trapezoid("Panel A (L side)", 2, L, l, hA), trapezoid("Panel B (W side)", 2, W, w, hB)] },
+      t,
+      density,
+      {
+        steps: [`True heights: hA = √(${f(H)}² + ${f((W - w) / 2)}²) = ${f(hA)}, hB = √(${f(H)}² + ${f((L - l) / 2)}²) = ${f(hB)} mm`],
+        development: { hA, hB },
+      },
+    );
   },
 };
 
@@ -65,7 +74,10 @@ const FACES = ["top", "bottom", "front", "back", "left", "right"] as const;
 export const rectDuct: ItemType = {
   id: "rect-duct",
   category: "fabricated",
+  family: FAMILY,
   label: "Rectangular duct / box",
+  description: "A straight rectangular duct or box. Choose which faces are closed.",
+  formulaText: ["Top/bottom: L × W,  front/back: L × H,  ends: W × H", "Weight = Σ panels × t × ρ / 1e6"],
   fields: [
     { key: "length", label: "Length L", kind: "number", unit: "mm" },
     { key: "width", label: "Width W", kind: "number", unit: "mm" },
@@ -86,17 +98,20 @@ export const rectDuct: ItemType = {
     const has = Object.fromEntries(
       FACES.map((k) => [k, bool(inp, k, k !== "left" && k !== "right")]),
     ) as Record<(typeof FACES)[number], boolean>;
-    const rect = (name: string, count: number, a: number, b: number): Panel => ({
-      name, count, shape: "rectangle", top: a, bottom: a, height: b, rectL: a, rectW: b,
+    const panel = (name: string, count: number, a: number, b: number): DevPiece => ({
+      name,
+      count,
+      outline: rect(0, 0, a, b),
+      dims: [{ kind: "text", label: `${f(a, 1)} × ${f(b, 1)}`, at: [a / 2, b / 2] }],
     });
-    const panels: Panel[] = [];
+    const pieces: DevPiece[] = [];
     const tb = +has.top + +has.bottom;
     const fb = +has.front + +has.back;
     const lr = +has.left + +has.right;
-    if (tb) panels.push(rect("Top/bottom", tb, L, W));
-    if (fb) panels.push(rect("Front/back", fb, L, H));
-    if (lr) panels.push(rect("Ends", lr, W, H));
-    if (!panels.length) throw new CalcError("Select at least one face");
-    return panelsResult(panels, t, density);
+    if (tb) pieces.push(panel("Top/bottom", tb, L, W));
+    if (fb) pieces.push(panel("Front/back", fb, L, H));
+    if (lr) pieces.push(panel("Ends", lr, W, H));
+    if (!pieces.length) throw new CalcError("Select at least one face");
+    return devResult({ pieces }, t, density, { steps: [`Duct ${f(L)} long, section ${f(W)} × ${f(H)}`] });
   },
 };

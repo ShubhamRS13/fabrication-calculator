@@ -1,157 +1,129 @@
-import type { ReactNode } from "react";
-import type { ItemResult, Panel } from "@/lib/calc/types";
+import type { DevDim, DevPiece, Development, Pt } from "@/lib/calc/types";
 import { num } from "@/lib/format";
 
-// Development sketches drawn from the computed dimensions. Not to scale between
-// items, but each sketch keeps its own proportions. Labels are in mm.
+// Flat-pattern drawing in the Plate'n'Sheets style: blue outline, green marking
+// lines, dashed frame (the ideal sheet rectangle) with its W × H, and the
+// pattern's own dimensions (R1, R2, θ, chord…). One renderer for every shape.
 
-const W = 320;
-const H = 220;
-const PAD = 28;
+const BOX = 300; // drawing area, px
+const M = 34; // margin for frame dimensions
+const COLORS = { outline: "#1d4ed8", mark: "#16a34a", frame: "#c026d3", dim: "#18181b" };
 
-function fit(width: number, height: number) {
-  const s = Math.min((W - 2 * PAD) / width, (H - 2 * PAD) / height);
-  return { s, ox: (W - width * s) / 2, oy: (H - height * s) / 2 };
-}
+/** Rounded coordinate: Math.sin/cos may differ in the last digits between server and browser. */
+const r2 = (n: number) => Math.round(n * 100) / 100;
 
-const stroke = { fill: "none", stroke: "currentColor", strokeWidth: 1.5 } as const;
-const sheet = { fill: "none", stroke: "#a1a1aa", strokeWidth: 1, strokeDasharray: "4 3" } as const;
+function Piece({ piece }: { piece: DevPiece }) {
+  const xs = piece.outline.map((p) => p[0]);
+  const ys = piece.outline.map((p) => p[1]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const w = maxX - minX || 1;
+  const h = maxY - minY || 1;
+  const s = BOX / Math.max(w, h);
+  const W = w * s + 2 * M;
+  const H = h * s + 2 * M;
+  // math (y up) → screen (y down)
+  const P = ([x, y]: Pt): Pt => [r2(M + (x - minX) * s), r2(M + (maxY - y) * s)];
+  const path = (pts: Pt[], close = true) =>
+    pts.map((p, i) => `${i ? "L" : "M"}${P(p).join(",")}`).join(" ") + (close ? " Z" : "");
 
-function T({ x, y, children, anchor = "middle" }: { x: number; y: number; children: string; anchor?: "start" | "middle" | "end" }) {
-  return (
-    <text x={x} y={y} textAnchor={anchor} fontSize={11} fill="currentColor" className="tabular-nums">
-      {children}
-    </text>
-  );
-}
+  const fx0 = M, fx1 = M + w * s, fy0 = M, fy1 = M + h * s;
 
-function Frame({ title, children }: { title: string; children: ReactNode }) {
   return (
     <figure className="text-ink">
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full max-w-md" role="img" aria-label={title}>
-        {children}
+      <svg viewBox={`0 0 ${r2(W)} ${r2(H)}`} className="h-auto w-full" role="img" aria-label={`${piece.name} flat pattern ${num(w)} by ${num(h)} mm`}>
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" fill="currentColor" />
+          </marker>
+        </defs>
+        {/* frame + its dimensions */}
+        <rect x={fx0} y={fy0} width={r2(fx1 - fx0)} height={r2(fy1 - fy0)} fill="none" stroke={COLORS.frame} strokeWidth={1} strokeDasharray="5 4" />
+        <g stroke={COLORS.frame} fill={COLORS.frame}>
+          <line x1={fx0} y1={fy0 - 14} x2={fx1} y2={fy0 - 14} markerStart="url(#arr)" markerEnd="url(#arr)" style={{ color: COLORS.frame }} />
+          <text x={(fx0 + fx1) / 2} y={fy0 - 19} textAnchor="middle" fontSize={12} stroke="none" className="tabular-nums">{num(w)}</text>
+          <line x1={fx0 - 14} y1={fy0} x2={fx0 - 14} y2={fy1} markerStart="url(#arr)" markerEnd="url(#arr)" style={{ color: COLORS.frame }} />
+          <text x={fx0 - 19} y={(fy0 + fy1) / 2} textAnchor="middle" fontSize={12} stroke="none" transform={`rotate(-90 ${fx0 - 19} ${(fy0 + fy1) / 2})`} className="tabular-nums">{num(h)}</text>
+        </g>
+        {/* marking lines */}
+        {piece.marks?.map(([a, b], i) => {
+          const [x1, y1] = P(a);
+          const [x2, y2] = P(b);
+          return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={COLORS.mark} strokeWidth={0.8} />;
+        })}
+        {/* outline and holes */}
+        <path d={[path(piece.outline), ...(piece.holes ?? []).map((hp) => path(hp))].join(" ")} fill="#1d4ed80d" fillRule="evenodd" stroke={COLORS.outline} strokeWidth={1.6} />
+        {piece.dims?.map((d, i) => <Dim key={i} d={d} P={P} />)}
       </svg>
-      <figcaption className="sr-only">{title}</figcaption>
+      <figcaption className="mt-1 text-center text-xs text-muted">
+        {piece.name}
+        {piece.count > 1 && ` × ${piece.count}`} · frame {num(w)} × {num(h)} mm
+      </figcaption>
     </figure>
   );
 }
 
-function RectSketch({ L, Wd, labelL, labelW, inner }: { L: number; Wd: number; labelL: string; labelW: string; inner?: { l: number; w: number } }) {
-  const { s, ox, oy } = fit(L, Wd);
-  return (
-    <Frame title={`Rectangle ${labelL} by ${labelW}`}>
-      <rect x={ox} y={oy} width={L * s} height={Wd * s} {...stroke} />
-      {inner && inner.l > 0 && inner.w > 0 && (
-        <rect x={ox + ((L - inner.l) / 2) * s} y={oy + ((Wd - inner.w) / 2) * s} width={inner.l * s} height={inner.w * s} {...stroke} />
-      )}
-      <T x={W / 2} y={oy - 8}>{labelL}</T>
-      <T x={ox - 6} y={H / 2} anchor="end">{labelW}</T>
-    </Frame>
+function Dim({ d, P }: { d: DevDim; P: (p: Pt) => Pt }) {
+  const color = COLORS.dim;
+  const label = (x: number, y: number, text: string, anchor: "start" | "middle" | "end" = "middle") => (
+    <text x={r2(x)} y={r2(y)} textAnchor={anchor} fontSize={11} fill={color} paintOrder="stroke" stroke="white" strokeWidth={3} className="tabular-nums">
+      {text}
+    </text>
   );
-}
-
-function RoundSketch({ od, id }: { od: number; id?: number }) {
-  const { s, ox, oy } = fit(od, od);
-  const cx = ox + (od * s) / 2;
-  const cy = oy + (od * s) / 2;
-  return (
-    <Frame title={`Circle OD ${num(od)}`}>
-      <rect x={ox} y={oy} width={od * s} height={od * s} {...sheet} />
-      <circle cx={cx} cy={cy} r={(od * s) / 2} {...stroke} />
-      {id ? <circle cx={cx} cy={cy} r={(id * s) / 2} {...stroke} /> : null}
-      <T x={cx} y={oy - 8}>{`Ø${num(od)}${id ? ` / Ø${num(id)}` : ""}`}</T>
-      <T x={ox + od * s + 4} y={cy} anchor="start">{`sheet ${num(od)}`}</T>
-    </Frame>
-  );
-}
-
-function FanSketch({ R1, R2, theta, chord }: { R1: number; R2: number; theta: number; chord: number }) {
-  const half = (theta * Math.PI) / 360;
-  const pts: [number, number][] = [];
-  const steps = 64;
-  for (let i = 0; i <= steps; i++) {
-    const a = -half + (2 * half * i) / steps;
-    pts.push([R1 * Math.sin(a), R1 * Math.cos(a)]);
+  if (d.kind === "text") {
+    const [x, y] = P(d.at);
+    return label(x, y + 4, d.label);
   }
-  for (let i = steps; i >= 0; i--) {
-    const a = -half + (2 * half * i) / steps;
-    pts.push([R2 * Math.sin(a), R2 * Math.cos(a)]);
+  if (d.kind === "radius") {
+    const [x1, y1] = P(d.center);
+    const [x2, y2] = P(d.to);
+    return (
+      <g style={{ color }}>
+        <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={0.9} markerEnd="url(#arr)" />
+        {label((x1 + x2) / 2 + 4, (y1 + y2) / 2 - 4, d.label, "start")}
+      </g>
+    );
   }
-  const xs = pts.map((p) => p[0]);
-  const ys = pts.map((p) => p[1]);
-  const minX = Math.min(...xs);
-  const maxY = Math.max(...ys);
-  const { s, ox, oy } = fit(Math.max(...xs) - minX, maxY - Math.min(...ys));
-  // Rounded: Math.sin/cos may differ in the last digits between server and browser,
-  // which would break hydration.
-  const map = ([x, y]: [number, number]) => `${(ox + (x - minX) * s).toFixed(2)},${(oy + (maxY - y) * s).toFixed(2)}`;
+  if (d.kind === "linear") {
+    const [ax, ay] = d.from;
+    const [bx, by] = d.to;
+    const len = Math.hypot(bx - ax, by - ay) || 1;
+    const nx = (-(by - ay) / len) * (d.offset ?? 0);
+    const ny = ((bx - ax) / len) * (d.offset ?? 0);
+    const [x1, y1] = P([ax + nx, ay + ny]);
+    const [x2, y2] = P([bx + nx, by + ny]);
+    return (
+      <g style={{ color }}>
+        <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={0.9} strokeDasharray={d.offset ? undefined : "3 3"} markerStart="url(#arr)" markerEnd="url(#arr)" />
+        {label((x1 + x2) / 2, (y1 + y2) / 2 - 5, d.label)}
+      </g>
+    );
+  }
+  // angle: counter-clockwise (in math coordinates) from `from` to `to` around `center`
+  const a0 = Math.atan2(d.from[1] - d.center[1], d.from[0] - d.center[0]);
+  let a1 = Math.atan2(d.to[1] - d.center[1], d.to[0] - d.center[0]);
+  while (a1 <= a0) a1 += 2 * Math.PI;
+  const pts: Pt[] = [];
+  for (let i = 0; i <= 48; i++) {
+    const a = a0 + ((a1 - a0) * i) / 48;
+    pts.push(P([d.center[0] + d.r * Math.cos(a), d.center[1] + d.r * Math.sin(a)]));
+  }
+  const mid = (a0 + a1) / 2;
+  const [lx, ly] = P([d.center[0] + d.r * 1.25 * Math.cos(mid), d.center[1] + d.r * 1.25 * Math.sin(mid)]);
   return (
-    <Frame title={`Cone development R1 ${num(R1)}, R2 ${num(R2)}, angle ${num(theta)} degrees`}>
-      <polygon points={pts.map(map).join(" ")} {...stroke} />
-      <T x={W / 2} y={14}>{`R1 ${num(R1)} · R2 ${num(R2)}`}</T>
-      <T x={W / 2} y={H - 6}>{`θ ${num(theta)}° · chord ${num(chord)}`}</T>
-    </Frame>
+    <g style={{ color }}>
+      <polyline points={pts.map((p) => p.join(",")).join(" ")} fill="none" stroke={color} strokeWidth={0.9} markerStart="url(#arr)" markerEnd="url(#arr)" />
+      {label(lx, ly + 4, d.label)}
+    </g>
   );
 }
 
-function PanelsSketch({ panels }: { panels: Panel[] }) {
-  const n = panels.length;
-  const cellW = W / n;
-  const maxW = Math.max(...panels.map((p) => Math.max(p.top, p.bottom)));
-  const maxH = Math.max(...panels.map((p) => p.height));
-  const s = Math.min((cellW - 24) / maxW, (H - 70) / maxH);
+/** All pieces of a development, one under the other so labels stay readable. */
+export function DevelopmentSketch({ dev }: { dev: Development }) {
   return (
-    <Frame title="Panel developments">
-      {panels.map((p, i) => {
-        const cx = cellW * i + cellW / 2;
-        const top = 30;
-        const h = p.height * s;
-        const pts = [
-          [cx - (p.top * s) / 2, top],
-          [cx + (p.top * s) / 2, top],
-          [cx + (p.bottom * s) / 2, top + h],
-          [cx - (p.bottom * s) / 2, top + h],
-        ];
-        return (
-          <g key={p.name}>
-            <polygon points={pts.map((q) => q.map((v) => v.toFixed(2)).join(",")).join(" ")} {...stroke} />
-            <T x={cx} y={top - 6}>{num(p.top)}</T>
-            <T x={cx} y={top + h + 14}>{p.shape === "trapezoid" ? num(p.bottom) : `h ${num(p.height)}`}</T>
-            {p.shape === "trapezoid" && <T x={cx} y={top + h / 2 + 4}>{`h ${num(p.height)}`}</T>}
-            <T x={cx} y={H - 6}>{`${p.name.replace(/ \(.*\)/, "")} × ${p.count}`}</T>
-          </g>
-        );
-      })}
-    </Frame>
+    <div className="space-y-5">
+      {dev.pieces.map((p, i) => (
+        <Piece key={`${p.name}-${i}`} piece={p} />
+      ))}
+    </div>
   );
-}
-
-/** Returns null when the item type has no flat development worth drawing. */
-export function DevelopmentSketch({ typeId, result, inputs }: { typeId: string; result: ItemResult; inputs: Record<string, unknown> }) {
-  const d = result.development ?? {};
-  const n = (k: string) => Number(inputs[k]) || 0;
-  switch (typeId) {
-    case "shell":
-      return <RectSketch L={d.length} Wd={d.height} labelL={`π × Dm = ${num(d.length)}`} labelW={`H ${num(d.height)}`} />;
-    case "cone":
-      return <FanSketch R1={d.R1} R2={d.R2} theta={d.theta} chord={d.chord} />;
-    case "ring-flange":
-      return <RoundSketch od={n("od")} id={n("id")} />;
-    case "disc":
-      return <RoundSketch od={n("dia")} />;
-    case "dished-end":
-      return <RoundSketch od={d.blankDia} />;
-    case "rect-flange":
-      return <RectSketch L={n("length")} Wd={n("width")} labelL={num(n("length"))} labelW={num(n("width"))} inner={{ l: n("innerL"), w: n("innerW") }} />;
-    case "plate":
-    case "bent-plate":
-      return result.sheetL && result.sheetW ? (
-        <RectSketch L={result.sheetL} Wd={result.sheetW} labelL={num(result.sheetL)} labelW={num(result.sheetW)} />
-      ) : null;
-    case "pyramid-hopper":
-    case "rect-duct":
-      return result.panels?.length ? <PanelsSketch panels={result.panels} /> : null;
-    default:
-      return null;
-  }
 }

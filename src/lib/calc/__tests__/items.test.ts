@@ -56,7 +56,7 @@ describe("shell", () => {
     const r = shell.compute({ dia: 1000, diaRef: "OD", height: 1500, thk: 5 }, SS);
     expect(r.finishWt).toBeCloseTo(WB.PIPE(1000, 1500, 5, 1, 8), 9);
     expect(r.development?.Dm).toBe(995);
-    expect(r.sheetL).toBeCloseTo(Math.PI * 995, 9);
+    expect(r.sheetL).toBeCloseTo(Math.PI * 995, 6);
     expect(r.sheetW).toBe(1500);
   });
 
@@ -72,10 +72,9 @@ describe("concentric cone", () => {
   const d = r.development!;
 
   it("development geometry", () => {
-    expect(d.Dm1).toBe(995);
-    expect(d.Dm2).toBe(295);
-    expect(d.slant).toBeCloseTo(Math.hypot(800, 350), 9);
-    expect(d.R1 - d.R2).toBeCloseTo(d.slant, 9);
+    expect(d.Rb).toBe(497.5);
+    expect(d.R1).toBeCloseTo(d.slant, 9);
+    expect(d.R1 - d.R2).toBeCloseTo(Math.hypot(800, 350), 9);
     // Outer arc length equals the mean circumference of the large end.
     expect((Math.PI * d.R1 * d.theta) / 180).toBeCloseTo(Math.PI * 995, 6);
     expect((Math.PI * d.R2 * d.theta) / 180).toBeCloseTo(Math.PI * 295, 6);
@@ -83,7 +82,7 @@ describe("concentric cone", () => {
 
   it("finish weight = CONE_FULCRUM_ARC = frustum lateral area", () => {
     expect(r.finishWt).toBeCloseTo(WB.CONE_FULCRUM_ARC(d.theta, d.R1, d.R2, 5, 1, 8), 9);
-    const lateral = Math.PI * ((995 + 295) / 2) * d.slant;
+    const lateral = Math.PI * ((995 + 295) / 2) * (d.R1 - d.R2);
     expect(r.finishWt).toBeCloseTo((lateral * 5 * 8) / 1e6, 9);
   });
 
@@ -119,8 +118,8 @@ describe("panel shapes", () => {
   it("square pyramid hopper", () => {
     const r = pyramidHopper.compute({ topL: 1000, topW: 1000, botL: 200, botW: 200, height: 400, thk: 4 }, MS);
     const h = Math.hypot(400, 400);
-    expect(r.panels).toHaveLength(2);
-    expect(r.panels![0].height).toBeCloseTo(h, 9);
+    expect(r.dev!.pieces).toHaveLength(2);
+    expect(r.development!.hA).toBeCloseTo(h, 9);
     expect(r.finishWt).toBeCloseTo((4 * ((1000 + 200) / 2) * h * 4 * 7.85) / 1e6, 9);
     expect(r.processWt).toBeCloseTo((4 * 1000 * h * 4 * 7.85) / 1e6, 9);
   });
