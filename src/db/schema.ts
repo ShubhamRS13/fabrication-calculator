@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
-  boolean, date, doublePrecision, index, integer, jsonb, pgEnum, pgTable, primaryKey, text,
+  boolean, date, doublePrecision, index, integer, uniqueIndex, jsonb, pgEnum, pgTable, primaryKey, text,
   timestamp, uuid,
 } from "drizzle-orm/pg-core";
 import type { InputValue } from "@/lib/calc/types";
@@ -45,7 +45,7 @@ export const sectionSizes = pgTable(
     data: jsonb("data").$type<Record<string, number>>().notNull(),
     builtIn: boolean("built_in").notNull().default(false),
   },
-  (t) => [index("section_sizes_series_idx").on(t.series, t.size)],
+  (t) => [uniqueIndex("section_sizes_series_size_uq").on(t.series, t.size)],
 );
 
 export const customShapes = pgTable("custom_shapes", {

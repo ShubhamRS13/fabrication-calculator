@@ -139,3 +139,11 @@ export async function addCustomShapeAction(data: {
 export async function deleteCustomShapeAction(shapeId: string) {
   return run(() => lib.deleteCustomShape(getDb(), v.id.parse(shapeId)), ["/settings"]);
 }
+
+export async function upsertSectionSizeAction(data: { series: string; size: string; data: Record<string, number> }) {
+  return run(() => lib.upsertSectionSize(getDb(), data), ["/"]);
+}
+
+export async function deleteSectionSizeAction(id: string) {
+  return run(() => lib.deleteSectionSize(getDb(), v.id.parse(id)), ["/"]);
+}

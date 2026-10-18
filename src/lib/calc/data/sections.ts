@@ -35,21 +35,65 @@ export const SWG: Record<number, number> = {
   13: 2.337, 14: 2.032, 16: 1.626, 18: 1.219, 20: 0.914, 22: 0.711, 24: 0.559,
 };
 
-/** Rolled structural sections, kg/m for MS (7.85 g/cc). Scaled by density for other materials. */
-export const STRUCTURAL: Record<"ISA" | "ISMC" | "ISMB", Record<string, number>> = {
+/**
+ * Rolled sections (IS 808), kg/m for MS (7.85 g/cc); scaled by density for other
+ * materials. Values are the common published figures — check against supplier
+ * data. ISHB sizes with two weights are listed as "size (kg/m)".
+ */
+export const STRUCTURAL: Record<string, Record<string, number>> = {
   ISA: {
+    // equal
     "25x25x3": 1.1, "25x25x5": 1.8, "30x30x3": 1.4, "35x35x5": 2.6, "40x40x5": 3.0,
     "40x40x6": 3.5, "45x45x5": 3.4, "50x50x5": 3.8, "50x50x6": 4.5, "65x65x6": 5.8,
     "75x75x6": 6.8, "75x75x8": 8.9, "90x90x8": 10.8, "100x100x8": 12.1, "100x100x10": 14.9,
+    // unequal
+    "30x20x3": 1.1, "40x25x3": 1.5, "40x25x5": 2.4, "45x30x5": 2.8, "50x30x5": 3.0,
+    "60x40x5": 3.7, "60x40x6": 4.4, "65x45x6": 4.9, "70x45x6": 5.2, "75x50x6": 5.6,
+    "75x50x8": 7.4, "80x50x6": 5.9, "90x60x6": 6.8, "90x60x8": 8.9, "100x65x8": 10.1,
+    "100x75x8": 10.6, "125x75x8": 12.2, "125x75x10": 15.0, "150x75x10": 16.9, "150x115x10": 20.1,
   },
   ISMC: {
     "75": 6.8, "100": 9.2, "125": 12.7, "150": 16.4, "175": 19.1, "200": 22.1,
     "225": 25.9, "250": 30.4, "300": 35.8, "350": 42.1, "400": 49.4,
   },
+  ISLC: {
+    "75": 5.7, "100": 7.9, "125": 10.7, "150": 14.4, "175": 17.6, "200": 20.6,
+    "225": 24.0, "250": 28.0, "300": 33.1, "350": 38.8, "400": 45.7,
+  },
+  ISJC: { "100": 5.8, "125": 7.9, "150": 9.9, "175": 11.2, "200": 13.9 },
   ISMB: {
     "100": 11.5, "125": 13.0, "150": 14.9, "175": 19.3, "200": 25.4, "225": 31.2,
     "250": 37.3, "300": 44.2, "350": 52.4, "400": 61.6, "450": 72.4, "500": 86.9, "600": 122.6,
   },
+  ISLB: {
+    "75": 6.1, "100": 8.0, "125": 11.9, "150": 14.2, "175": 16.7, "200": 19.8, "225": 23.5,
+    "250": 27.9, "275": 33.0, "300": 37.7, "325": 43.1, "350": 49.5, "400": 56.9,
+    "450": 65.3, "500": 75.0, "550": 86.3, "600": 99.5,
+  },
+  ISJB: { "150": 7.1, "175": 8.1, "200": 9.9, "225": 12.8 },
+  ISWB: {
+    "150": 17.0, "175": 22.1, "200": 28.8, "225": 33.9, "250": 40.9, "300": 48.1,
+    "350": 56.9, "400": 66.7, "450": 79.4, "500": 95.2, "550": 112.5, "600": 133.7,
+  },
+  ISHB: {
+    "150 (27.1)": 27.1, "150 (30.6)": 30.6, "150 (34.6)": 34.6, "200 (37.3)": 37.3, "200 (40.0)": 40.0,
+    "225 (43.1)": 43.1, "225 (46.8)": 46.8, "250 (51.0)": 51.0, "250 (54.7)": 54.7,
+    "300 (58.8)": 58.8, "300 (63.0)": 63.0, "350 (67.4)": 67.4, "350 (72.4)": 72.4,
+    "400 (77.4)": 77.4, "400 (82.2)": 82.2, "450 (87.2)": 87.2, "450 (92.5)": 92.5,
+  },
+};
+
+/** Which picker type each series belongs to, and its long name. */
+export const SERIES_INFO: Record<string, { group: "angle" | "channel" | "beam" | "hbeam"; name: string }> = {
+  ISA: { group: "angle", name: "ISA – angle (equal & unequal)" },
+  ISMC: { group: "channel", name: "ISMC – medium weight channel" },
+  ISLC: { group: "channel", name: "ISLC – light weight channel" },
+  ISJC: { group: "channel", name: "ISJC – junior channel" },
+  ISMB: { group: "beam", name: "ISMB – medium weight beam" },
+  ISLB: { group: "beam", name: "ISLB – light weight beam" },
+  ISJB: { group: "beam", name: "ISJB – junior beam" },
+  ISWB: { group: "beam", name: "ISWB – wide flange beam" },
+  ISHB: { group: "hbeam", name: "ISHB – H beam" },
 };
 
 export const MS_DENSITY = 7.85;

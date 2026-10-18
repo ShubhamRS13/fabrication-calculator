@@ -30,6 +30,8 @@ export const getSettings = cache(async () => lib.getSettings(await ready()));
 
 export const getSectionSizes = cache(async () => lib.listSectionSizes(await ready()));
 
+export const getSectionLibrary = cache(async () => dal.loadSectionLibrary(await ready()));
+
 function isUuid(s: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 }

@@ -1,3 +1,5 @@
+import type { SectionLibrary } from "./sections-lib";
+
 // Core types for the calculation engine.
 // Units everywhere: lengths mm, density g/cc, weights kg, money ₹.
 
@@ -30,8 +32,8 @@ export interface FieldDef {
   default?: InputValue;
   optional?: boolean;
   help?: string;
-  /** Options that depend on other inputs, e.g. sizes of the chosen series. */
-  dependentOptions?: (inputs: ItemInputs) => { value: string; label: string }[];
+  /** Options that depend on other inputs or the section library, e.g. sizes of the chosen series. */
+  dependentOptions?: (inputs: ItemInputs, lib: SectionLibrary) => { value: string; label: string }[];
   /** Show the field only when this returns true (e.g. rolling allowance only for "from flat"). */
   showIf?: (inputs: ItemInputs) => boolean;
 }
@@ -117,6 +119,8 @@ export interface ItemResult {
 
 export interface CalcContext {
   density: number;
+  /** Section & pipe tables; built-in tables when absent. */
+  lib?: SectionLibrary;
 }
 
 export interface ItemType {

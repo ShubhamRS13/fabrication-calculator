@@ -6,6 +6,7 @@ import type { Db } from "@/db";
 import * as schema from "@/db/schema";
 import { seed } from "@/db/seed";
 import * as dal from "../costings";
+import * as lib from "../library";
 
 let db: Db;
 
@@ -131,6 +132,26 @@ describe("data layer", () => {
     const after = await items();
     const moved = ["PLATE (CIRCULAR)", "IN ASM"].map((n) => after.find((i) => i.name === n)!.itemNo).sort();
     expect(moved).toEqual(["20", "21"]);
+  });
+
+  it("section tables: add a size, correct a built-in one, built-ins cannot be deleted", async () => {
+    await lib.upsertSectionSize(db, { series: "MC", size: "250", data: { kgPerM: 30.6 } });
+    await lib.upsertSectionSize(db, { series: "ISMC", size: "100", data: { kgPerM: 9.56 } });
+    await lib.upsertSectionSize(db, { series: "PIPE-SCH-40", size: "65 NB", data: { od: 73, wall: 5.16 } });
+    const libNow = await dal.loadSectionLibrary(db);
+    expect(libNow.kgPerM.MC["250"]).toBe(30.6);
+    expect(libNow.kgPerM.ISMC["100"]).toBe(9.56);
+    expect(libNow.pipeSch["40"]["65"]).toEqual({ od: 73, wall: 5.16 });
+    await expect(lib.upsertSectionSize(db, { series: "PIPE-SCH-40", size: "65 NB", data: { od: 10, wall: 6 } })).rejects.toThrow(/too thick/);
+    const rows = await lib.listSectionSizes(db);
+    const builtIn = rows.find((r) => r.series === "ISMB" && r.size === "200")!;
+    await expect(lib.deleteSectionSize(db, builtIn.id)).rejects.toThrow(/cannot be deleted/);
+    const mine = rows.find((r) => r.series === "MC")!;
+    await lib.deleteSectionSize(db, mine.id);
+    expect((await dal.loadSectionLibrary(db)).kgPerM.MC).toBeUndefined();
+    // Re-seeding adds missing built-ins but keeps the corrected value.
+    await seed(db);
+    expect((await dal.loadSectionLibrary(db)).kgPerM.ISMC["100"]).toBe(9.56);
   });
 
   it("deleting a costing cascades", async () => {

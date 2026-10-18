@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { ItemEditor } from "@/components/item-editor";
 import { PageTitle, Skeleton } from "@/components/ui";
 import { loadDrawing } from "@/server/load";
-import { getCustomShapes, getMaterials } from "@/server/queries";
+import { getCustomShapes, getMaterials, getSectionLibrary } from "@/server/queries";
 
 export const metadata = { title: "Add item" };
 
@@ -21,7 +21,7 @@ async function NewItem({
   params: Promise<{ id: string; drawingId: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [{ tree, drawing }, mats, shapes, sp] = await Promise.all([loadDrawing(params), getMaterials(), getCustomShapes(), searchParams]);
+  const [{ tree, drawing }, mats, shapes, sp, sectionLib] = await Promise.all([loadDrawing(params), getMaterials(), getCustomShapes(), searchParams, getSectionLibrary()]);
   const back = `/costings/${tree.costing.id}/drawings/${drawing.id}`;
   return (
     <>
@@ -34,6 +34,7 @@ async function NewItem({
         defaultMaterial={drawing.material ?? tree.costing.defaultMaterial}
         assemblies={drawing.assemblies.map(({ id, name, qty, material }) => ({ id, name, qty, material }))}
         customShapes={shapes}
+        sectionLib={sectionLib}
         siblings={drawing.items.map(({ id, itemNo, assemblyId }) => ({ id, itemNo, assemblyId }))}
         initialType={typeof sp.type === "string" ? sp.type : undefined}
       />

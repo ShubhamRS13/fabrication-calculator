@@ -6,6 +6,7 @@ import { validateCustomShape } from "@/lib/calc/custom";
 import { COMPANY } from "@/db/seed";
 import { InvalidInputError, NotFoundError } from "./costings";
 import * as v from "./validation";
+import { kindOf } from "@/lib/calc/sections-lib";
 
 // Library and settings: company details, materials, custom shapes, section tables.
 
@@ -63,4 +64,49 @@ export async function deleteCustomShape(db: Db, shapeId: string) {
 
 export async function listSectionSizes(db: Db) {
   return db.select().from(sectionSizes).orderBy(asc(sectionSizes.series), asc(sectionSizes.size));
+}
+
+// ---------- section tables (editable) ----------
+
+const positive = (label: string) => z.number().finite().positive(`${label} must be more than 0`).max(100000);
+
+export const sectionSizeSchema = z.object({
+  series: z.string().trim().min(1, "Series is required").max(40).regex(/^[A-Za-z0-9 _-]+$/, "Series: letters, digits, space, - or _"),
+  size: z.string().trim().min(1, "Size is required").max(40),
+  /** kg/m for rolled series; od + wall (+ nb) for pipes; thk (+ gauge) for SWG. */
+  data: z.record(z.number().finite()),
+});
+
+/** Validate the numbers a series needs, and derive the key fields (NB, gauge) from the size label. */
+function checkSectionData(series: string, size: string, data: Record<string, number>): Record<string, number> {
+  const { kind } = kindOf(series);
+  const lead = Number(/^\s*(\d+(\.\d+)?)/.exec(size)?.[1]);
+  if (kind === "kgPerM") return { kgPerM: positive("kg/m").parse(data.kgPerM) };
+  if (kind === "swg") {
+    if (!Number.isFinite(lead)) throw new InvalidInputError("SWG size must start with the gauge number, e.g. 10 SWG");
+    return { gauge: lead, thk: positive("Thickness").parse(data.thk) };
+  }
+  if (!Number.isFinite(lead)) throw new InvalidInputError("Pipe size must start with the NB, e.g. 50 NB");
+  const od = positive("OD").parse(data.od);
+  const wall = positive("Wall").parse(data.wall);
+  if (2 * wall >= od) throw new InvalidInputError("Wall is too thick for this OD");
+  return { nb: lead, od, wall };
+}
+
+/** Add a size, or change an existing one's values (built-in sizes can be corrected too). */
+export async function upsertSectionSize(db: Db, input: z.input<typeof sectionSizeSchema>) {
+  const { series, size, data } = sectionSizeSchema.parse(input);
+  const clean = checkSectionData(series, size, data);
+  await db
+    .insert(sectionSizes)
+    .values({ series, size, data: clean, builtIn: false })
+    .onConflictDoUpdate({ target: [sectionSizes.series, sectionSizes.size], set: { data: clean } });
+}
+
+/** Only sizes you added can be deleted; built-in sizes would come back on the next update. */
+export async function deleteSectionSize(db: Db, id: string) {
+  const [row] = await db.select({ builtIn: sectionSizes.builtIn }).from(sectionSizes).where(eq(sectionSizes.id, id));
+  if (!row) throw new NotFoundError("Section size");
+  if (row.builtIn) throw new InvalidInputError("Built-in sizes cannot be deleted; correct the value instead");
+  await db.delete(sectionSizes).where(eq(sectionSizes.id, id));
 }

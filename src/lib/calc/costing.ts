@@ -2,6 +2,7 @@ import type { ItemInputs, ItemResult, ItemType, Material } from "./types";
 import { familyOf, findMaterial } from "./materials";
 import { buildRegistry } from "./registry";
 import type { CustomShapeDef } from "./custom";
+import type { SectionLibrary } from "./sections-lib";
 
 // ---------- Inputs ----------
 
@@ -64,6 +65,8 @@ export interface CostingInput {
   chargeLines: ChargeLine[];
   drawings: DrawingInput[];
   customShapes?: CustomShapeDef[];
+  /** Section & pipe tables (from Settings); built-in tables when absent. */
+  sections?: SectionLibrary;
 }
 
 // ---------- Outputs ----------
@@ -151,7 +154,7 @@ function addTotals(into: MaterialTotals, t: MaterialTotals) {
 
 export function computeItem(
   item: ItemInput,
-  ctx: { type?: ItemType; material: string; materials: Material[]; burningPct: number; multiplier: number; rate: MaterialRate | undefined },
+  ctx: { type?: ItemType; material: string; materials: Material[]; burningPct: number; multiplier: number; rate: MaterialRate | undefined; sections?: SectionLibrary },
 ): ItemOutput {
   const out: ItemOutput = {
     item, material: ctx.material, burningPct: ctx.burningPct, multiplier: ctx.multiplier, unit: null,
@@ -162,7 +165,7 @@ export function computeItem(
   if (!mat && ctx.type.category !== "bought") return { ...out, error: `Unknown material "${ctx.material}"` };
   let unit: ItemResult;
   try {
-    unit = ctx.type.compute(item.inputs, { density: mat?.density ?? 0 });
+    unit = ctx.type.compute(item.inputs, { density: mat?.density ?? 0, lib: ctx.sections });
   } catch (err) {
     return { ...out, error: (err as Error).message };
   }
@@ -193,6 +196,7 @@ export function computeDrawing(d: DrawingInput, c: CostingInput, registry: Map<s
       burningPct,
       multiplier: item.qty * (asm?.qty ?? 1),
       rate: c.rates[material],
+      sections: c.sections,
     });
   });
 

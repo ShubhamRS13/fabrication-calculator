@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { ItemEditor } from "@/components/item-editor";
 import { PageTitle, Skeleton } from "@/components/ui";
 import { loadDrawing } from "@/server/load";
-import { getCustomShapes, getMaterials } from "@/server/queries";
+import { getCustomShapes, getMaterials, getSectionLibrary } from "@/server/queries";
 
 export const metadata = { title: "Edit item" };
 
@@ -16,7 +16,7 @@ export default function EditItemPage(props: PageProps<"/costings/[id]/drawings/[
 }
 
 async function EditItem({ params }: { params: Promise<{ id: string; drawingId: string; itemId: string }> }) {
-  const [{ tree, drawing }, mats, shapes, { itemId }] = await Promise.all([loadDrawing(params), getMaterials(), getCustomShapes(), params]);
+  const [{ tree, drawing }, mats, shapes, { itemId }, sectionLib] = await Promise.all([loadDrawing(params), getMaterials(), getCustomShapes(), params, getSectionLibrary()]);
   const item = drawing.items.find((i) => i.id === itemId);
   if (!item) notFound();
   const back = `/costings/${tree.costing.id}/drawings/${drawing.id}`;
@@ -31,6 +31,7 @@ async function EditItem({ params }: { params: Promise<{ id: string; drawingId: s
         defaultMaterial={drawing.material ?? tree.costing.defaultMaterial}
         assemblies={drawing.assemblies.map(({ id, name, qty, material }) => ({ id, name, qty, material }))}
         customShapes={shapes}
+        sectionLib={sectionLib}
         siblings={drawing.items.map(({ id, itemNo, assemblyId }) => ({ id, itemNo, assemblyId }))}
         item={{
           id: item.id,

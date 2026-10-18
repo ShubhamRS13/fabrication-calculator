@@ -356,7 +356,117 @@ const DIAGRAMS: Record<string, () => ReactNode> = {
       <Label x={176} y={150} a="start">W</Label>
     </Svg>
   ),
+
+  // ---------- sections (cross-sections; L = cut length) ----------
+  "pipe-sch": () => <PipeSection label="Pipe by NB and schedule: OD and wall t from the table, cut length L" od="NB" t="SCH" />,
+  "pipe-is1239": () => <PipeSection label="IS 1239 pipe: OD and wall t from the table, cut length L" od="NB" t="class" />,
+  "pipe-swg": () => <PipeSection label="Tube: OD, wall from SWG, cut length L" od="OD" t="SWG" />,
+  "pipe-custom": () => <PipeSection label="Tube: OD, wall thickness t, cut length L" od="OD" t="t" />,
+  "rect-tube": () => (
+    <Svg label="Rectangular tube: sides A and B, thickness t">
+      <path d="M50,40 L170,40 L170,150 L50,150 Z M60,50 L160,50 L160,140 L60,140 Z" fill="#1d4ed810" fillRule="evenodd" stroke={BLUE} strokeWidth={1.6} />
+      <DimH x1={50} x2={170} y={172} label="A" from={[150, 150]} />
+      <DimV y1={40} y2={150} x={194} label="B" from={[170, 170]} />
+      <Label x={64} y={34} a="start">t</Label>
+      <CutLength />
+    </Svg>
+  ),
+  "round-bar": () => (
+    <Svg label="Round bar: diameter d">
+      <circle cx={CX} cy={95} r={52} fill="#1d4ed810" stroke={BLUE} strokeWidth={1.6} />
+      <Axis x={CX} y1={32} y2={158} />
+      <DimH x1={CX - 52} x2={CX + 52} y={170} label="d" from={[95, 95]} />
+      <CutLength />
+    </Svg>
+  ),
+  "square-bar": () => (
+    <Svg label="Square bar: side a">
+      <rect x={60} y={45} width={100} height={100} fill="#1d4ed810" stroke={BLUE} strokeWidth={1.6} />
+      <DimH x1={60} x2={160} y={168} label="a" from={[145, 145]} />
+      <CutLength />
+    </Svg>
+  ),
+  "hex-bar": () => {
+    const pts = Array.from({ length: 6 }, (_, i) => {
+      const a = (Math.PI / 3) * i;
+      return `${CX + 58 * Math.cos(a)},${95 + 58 * Math.sin(a)}`;
+    });
+    return (
+      <Svg label="Hex bar: across flats s">
+        <polygon points={pts.join(" ")} fill="#1d4ed810" stroke={BLUE} strokeWidth={1.6} />
+        <DimV y1={95 - 50.2} y2={95 + 50.2} x={190} label="s" from={[CX + 29, CX + 29]} />
+        <CutLength />
+      </Svg>
+    );
+  },
+  "angle-std": () => <AngleSection label="Angle ISA: legs A and B, thickness t, from the table" />,
+  "angle-true": () => <AngleSection label="Angle: legs A and B, thickness t" />,
+  "angle-custom": () => <AngleSection label="Angle (workbook formula): leg width W, thickness t" equal />,
+  "channel-std": () => <ChannelSection label="Channel ISMC / ISLC / ISJC from the table: depth D, flange B" />,
+  "beam-i": () => <BeamSection label="I beam from the table: depth D, flange B" />,
+  "beam-h": () => <BeamSection label="H beam ISHB from the table: depth D, flange B" wide />,
+  structural: () => <BeamSection label="Rolled section from the table" />,
+  "section-custom": () => <BeamSection label="Custom I / H / C: depth D, flange width B, web tw, flange tf" thicknesses />,
 };
+
+const CutLength = () => <Label x={CX} y={196}>× cut length L</Label>;
+
+function PipeSection({ label, od, t }: { label: string; od: string; t: string }) {
+  return (
+    <Svg label={label}>
+      <circle cx={CX} cy={95} r={60} fill="#1d4ed810" stroke={BLUE} strokeWidth={1.6} />
+      <circle cx={CX} cy={95} r={48} fill="white" stroke={BLUE} strokeWidth={1.6} />
+      <Axis x={CX} y1={28} y2={162} />
+      <DimH x1={CX - 60} x2={CX + 60} y={176} label={od} from={[95, 95]} />
+      <line x1={CX + 72} y1={40} x2={CX + 52} y2={58} stroke={INK} strokeWidth={0.9} markerEnd="url(#da)" />
+      <Label x={CX + 74} y={38} a="start">{t}</Label>
+      <CutLength />
+    </Svg>
+  );
+}
+
+function AngleSection({ label, equal }: { label: string; equal?: boolean }) {
+  return (
+    <Svg label={label}>
+      <path d="M60,30 L74,30 L74,146 L170,146 L170,160 L60,160 Z" fill="#1d4ed810" stroke={BLUE} strokeWidth={1.6} />
+      <DimH x1={60} x2={170} y={180} label={equal ? "W" : "A"} from={[160, 160]} />
+      <DimV y1={30} y2={160} x={40} label={equal ? "W" : "B"} from={[60, 60]} />
+      <Label x={86} y={44} a="start">t</Label>
+    </Svg>
+  );
+}
+
+function ChannelSection({ label }: { label: string }) {
+  return (
+    <Svg label={label}>
+      <path d="M150,30 L80,30 L80,160 L150,160 L150,148 L94,148 L94,42 L150,42 Z" fill="#1d4ed810" stroke={BLUE} strokeWidth={1.6} />
+      <DimV y1={30} y2={160} x={56} label="D" from={[80, 80]} />
+      <DimH x1={80} x2={150} y={180} label="B" from={[160, 160]} />
+    </Svg>
+  );
+}
+
+function BeamSection({ label, wide, thicknesses }: { label: string; wide?: boolean; thicknesses?: boolean }) {
+  const b = wide ? 62 : 44;
+  return (
+    <Svg label={label}>
+      <path
+        d={`M${CX - b},30 L${CX + b},30 L${CX + b},42 L${CX + 5},42 L${CX + 5},148 L${CX + b},148 L${CX + b},160 L${CX - b},160 L${CX - b},148 L${CX - 5},148 L${CX - 5},42 L${CX - b},42 Z`}
+        fill="#1d4ed810"
+        stroke={BLUE}
+        strokeWidth={1.6}
+      />
+      <DimV y1={30} y2={160} x={CX - b - 22} label="D" from={[CX - b, CX - b]} />
+      <DimH x1={CX - b} x2={CX + b} y={180} label="B" from={[160, 160]} />
+      {thicknesses && (
+        <>
+          <Label x={CX + 10} y={100} a="start">tw</Label>
+          <Label x={CX + b + 6} y={40} a="start">tf</Label>
+        </>
+      )}
+    </Svg>
+  );
+}
 
 interface TruncGeom {
   apex: number;

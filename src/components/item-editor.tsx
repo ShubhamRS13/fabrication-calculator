@@ -8,6 +8,7 @@ import { buildRegistry } from "@/lib/calc/registry";
 import type { FieldDef, InputValue, ItemCategory, ItemResult, ItemType, Material } from "@/lib/calc/types";
 import { inr, kg, num, parseNum } from "@/lib/format";
 import { nextItemNo } from "@/lib/item-no";
+import type { SectionLibrary } from "@/lib/calc/sections-lib";
 import { ReferenceDiagram, TypeTile, hasDiagram } from "./diagrams";
 import { DevelopmentSketch } from "./sketch";
 import { Button, Card, CardHeader, cx, ErrorText, Input, Label, Select, Stat } from "./ui";
@@ -34,16 +35,33 @@ export interface EditorItem {
   inputs: Record<string, InputValue>;
 }
 
-function initialValues(t: ItemType, inputs: Record<string, InputValue> = {}): Values {
+/** Options of a select field, which may depend on other values and the section library. */
+const selectOptions = (f: FieldDef, values: Values, lib: SectionLibrary) =>
+  f.dependentOptions?.(values as Record<string, InputValue>, lib) ?? f.options ?? [];
+
+/**
+ * Keep dependent selects valid: when a choice changes (e.g. series), any later
+ * select whose value is no longer offered (e.g. size) takes its first option.
+ */
+function reconcile(t: ItemType, values: Values, lib: SectionLibrary): Values {
+  const v = { ...values };
+  for (const f of t.fields) {
+    if (f.kind !== "select") continue;
+    const options = selectOptions(f, v, lib);
+    if (options.length && !options.some((o) => o.value === v[f.key])) v[f.key] = options[0].value;
+  }
+  return v;
+}
+
+function initialValues(t: ItemType, lib: SectionLibrary, inputs: Record<string, InputValue> = {}): Values {
   const v: Values = {};
   for (const f of t.fields) {
     const x = inputs[f.key] ?? f.default;
     if (f.kind === "boolean") v[f.key] = x === true || x === "true";
     else if (x !== undefined) v[f.key] = String(x);
-    else if (f.kind === "select" && f.options?.length) v[f.key] = f.options[0].value;
     else v[f.key] = "";
   }
-  return v;
+  return reconcile(t, v, lib);
 }
 
 /** Turn form values into engine inputs. Returns the fields that are not valid numbers. */
@@ -75,6 +93,8 @@ interface ItemEditorProps {
   initialType?: string;
   /** Every item already on the drawing, for suggesting the next item number. */
   siblings: { id: string; itemNo: string; assemblyId: string | null }[];
+  /** Section & pipe tables from Settings. */
+  sectionLib: SectionLibrary;
 }
 
 /**
@@ -99,6 +119,7 @@ function ItemEditorForm({
   item,
   initialType,
   siblings,
+  sectionLib,
 }: ItemEditorProps) {
   const router = useRouter();
   const registry = useMemo(() => buildRegistry(customShapes), [customShapes]);
@@ -113,7 +134,7 @@ function ItemEditorForm({
   const [qty, setQty] = useState(String(item?.qty ?? 1));
   const [material, setMaterial] = useState(item?.material ?? "");
   const [assemblyId, setAssemblyId] = useState(item?.assemblyId ?? "");
-  const [values, setValues] = useState<Values>(() => (type ? initialValues(type, item?.inputs) : {}));
+  const [values, setValues] = useState<Values>(() => (type ? initialValues(type, sectionLib, item?.inputs) : {}));
 
   // ---------- item number: restarts per assembly, always editable ----------
   // Items saved with "Save & add another" count too, so the next suggestion moves on.
@@ -137,7 +158,7 @@ function ItemEditorForm({
 
   function pickType(t: ItemType) {
     setTypeId(t.id);
-    setValues(initialValues(t));
+    setValues(initialValues(t, sectionLib));
     if (!name || !item) setName(t.category === "custom" ? t.label : "");
     setError(undefined);
   }
@@ -155,11 +176,11 @@ function ItemEditorForm({
     if (bad.length) return { inputs, error: `${bad.join(", ")} must be a number` };
     if (density === undefined && type.category !== "bought") return { inputs, error: `Unknown material ${effMaterial}` };
     try {
-      return { inputs, result: type.compute(inputs, { density: density ?? 0 }) as ItemResult };
+      return { inputs, result: type.compute(inputs, { density: density ?? 0, lib: sectionLib }) as ItemResult };
     } catch (e) {
       return { inputs, error: (e as Error).message };
     }
-  }, [type, values, density, effMaterial]);
+  }, [type, values, density, effMaterial, sectionLib]);
 
   // ---------- save ----------
   function save(another: boolean) {
@@ -189,7 +210,7 @@ function ItemEditorForm({
         setItemNo(nextItemNo([...numbersIn(assemblyId), saved.itemNo]));
         setItemNoTyped(false);
         setName("");
-        setValues(initialValues(type));
+        setValues(initialValues(type, sectionLib));
         setQty("1");
         window.scrollTo({ top: 0 });
       } else {
@@ -332,7 +353,7 @@ function ItemEditorForm({
             {type.fields
               .filter((f) => !f.showIf || f.showIf(values as Record<string, InputValue>))
               .map((f) => (
-                <FieldInput key={f.key} field={f} values={values} onChange={(v) => setValues((s) => ({ ...s, [f.key]: v }))} />
+                <FieldInput key={f.key} field={f} values={values} lib={sectionLib} onChange={(v) => setValues((s) => reconcile(type, { ...s, [f.key]: v }, sectionLib))} />
               ))}
           </div>
         </Card>
@@ -514,7 +535,7 @@ function ResultTable({ r, multiplier }: { r: ItemResult; multiplier: number }) {
   );
 }
 
-function FieldInput({ field: f, values, onChange }: { field: FieldDef; values: Values; onChange: (v: string | boolean) => void }) {
+function FieldInput({ field: f, values, lib, onChange }: { field: FieldDef; values: Values; lib: SectionLibrary; onChange: (v: string | boolean) => void }) {
   const v = values[f.key];
   const unit = f.unit && f.unit !== "nos" ? f.unit : undefined;
   const hint = [unit, f.optional ? "optional" : undefined].filter(Boolean).join(" · ");
@@ -549,7 +570,7 @@ function FieldInput({ field: f, values, onChange }: { field: FieldDef; values: V
     );
   }
   if (f.kind === "select") {
-    const options = f.dependentOptions?.(values as Record<string, InputValue>) ?? f.options ?? [];
+    const options = selectOptions(f, values, lib);
     const current = String(v ?? "");
     const valid = options.some((o) => o.value === current);
     return (

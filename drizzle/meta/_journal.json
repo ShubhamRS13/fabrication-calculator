@@ -15,6 +15,13 @@
       "when": 1792251397285,
       "tag": "0001_item_no",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792328269456,
+      "tag": "0002_section_unique",
+      "breakpoints": true
     }
   ]
 }

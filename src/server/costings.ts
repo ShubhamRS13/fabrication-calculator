@@ -2,7 +2,7 @@ import { and, asc, desc, eq, exists, ilike, inArray, isNull, or, sql } from "dri
 import type { z } from "zod";
 import type { Db } from "@/db";
 import {
-  assemblies, chargeLines, costingMaterialRates, costings, customShapes, drawings, items, materials,
+  assemblies, chargeLines, costingMaterialRates, costings, customShapes, drawings, items, materials, sectionSizes,
 } from "@/db/schema";
 import { BUILT_IN_TYPES } from "@/lib/calc/registry";
 import {
@@ -10,6 +10,7 @@ import {
 } from "@/lib/calc/costing";
 import type { CustomShapeDef } from "@/lib/calc/custom";
 import type { Material } from "@/lib/calc/types";
+import { libraryFromRows, type SectionLibrary } from "@/lib/calc/sections-lib";
 import { nextItemNo } from "@/lib/item-no";
 import * as v from "./validation";
 
@@ -48,6 +49,12 @@ export async function listCustomShapes(db: Db): Promise<CustomShapeDef[]> {
     finishFormula: r.finishFormula,
     processFormula: r.processFormula ?? undefined,
   }));
+}
+
+/** Section & pipe tables as edited in Settings. */
+export async function loadSectionLibrary(db: Db): Promise<SectionLibrary> {
+  const rows = await db.select({ series: sectionSizes.series, size: sectionSizes.size, data: sectionSizes.data }).from(sectionSizes);
+  return libraryFromRows(rows);
 }
 
 async function assertMaterial(db: Db, code: string | null | undefined) {
@@ -312,7 +319,7 @@ export async function getCostingTree(db: Db, costingId: string) {
 export type CostingTree = NonNullable<Awaited<ReturnType<typeof getCostingTree>>>;
 
 /** Convert a stored costing into the engine's input. */
-export function toCostingInput(tree: CostingTree, mats: Material[], shapes: CustomShapeDef[]): CostingInput {
+export function toCostingInput(tree: CostingTree, mats: Material[], shapes: CustomShapeDef[], sections?: SectionLibrary): CostingInput {
   const nul = <T>(x: T | null) => x ?? undefined;
   return {
     defaultMaterial: tree.costing.defaultMaterial,
@@ -320,6 +327,7 @@ export function toCostingInput(tree: CostingTree, mats: Material[], shapes: Cust
     profitPct: tree.costing.profitPct,
     materials: mats,
     customShapes: shapes,
+    sections,
     rates: Object.fromEntries(tree.rates.map((r) => [r.material, { rate: r.rate, scrapRate: r.scrapRate }])),
     chargeLines: tree.chargeLines.map((l) => ({
       id: l.id, name: l.name, rate: l.rate, basis: l.basis, appliesTo: l.appliesTo as AppliesTo,
@@ -354,9 +362,14 @@ export async function computeCostingById(
   db: Db,
   costingId: string,
 ): Promise<{ tree: CostingTree; result: CostingOutput } | null> {
-  const [tree, mats, shapes] = await Promise.all([getCostingTree(db, costingId), listMaterials(db), listCustomShapes(db)]);
+  const [tree, mats, shapes, sections] = await Promise.all([
+    getCostingTree(db, costingId),
+    listMaterials(db),
+    listCustomShapes(db),
+    loadSectionLibrary(db),
+  ]);
   if (!tree) return null;
-  return { tree, result: computeCosting(toCostingInput(tree, mats, shapes)) };
+  return { tree, result: computeCosting(toCostingInput(tree, mats, shapes, sections)) };
 }
 
 // ---------- duplicate & search ----------
