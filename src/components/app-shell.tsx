@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Suspense, type ReactNode } from "react";
-import { NavLinks, NavList } from "./nav-links";
+import { LogoutButton, NavLinks, NavList } from "./nav-links";
 
 export function AppShell({ children }: { children: ReactNode }) {
   return (
@@ -12,11 +12,16 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Image src="/brand/logo-mark-256.png" alt="" width={32} height={32} priority />
             <span className="font-semibold tracking-tight">Shubhangi Engineers</span>
           </Link>
-          <nav className="hidden sm:block" aria-label="Main">
-            <Suspense fallback={<NavList variant="top" path="" />}>
-              <NavLinks variant="top" />
+          <div className="flex items-center gap-1">
+            <nav className="hidden sm:block" aria-label="Main">
+              <Suspense fallback={<NavList variant="top" path="" />}>
+                <NavLinks variant="top" />
+              </Suspense>
+            </nav>
+            <Suspense>
+              <LogoutButton />
             </Suspense>
-          </nav>
+          </div>
         </div>
       </header>
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-24 pt-5 sm:pb-10">{children}</main>

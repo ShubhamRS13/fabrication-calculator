@@ -12,8 +12,9 @@ export type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; e
 
 /** Run a mutation: check the user, validate ids, map known errors to messages. */
 async function run<T>(fn: () => Promise<T>, revalidate: string[]): Promise<ActionResult<T>> {
+  // Outside the try: when logged out it redirects to /login, which must not be caught.
+  await requireUser();
   try {
-    await requireUser();
     const data = await fn();
     for (const p of revalidate) revalidatePath(p, "layout");
     return { ok: true, data };

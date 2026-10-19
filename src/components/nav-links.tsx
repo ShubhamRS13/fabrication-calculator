@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { logoutAction } from "@/app/login/actions";
 import { cx } from "./ui";
 
 const LINKS = [
@@ -11,7 +12,21 @@ const LINKS = [
 
 /** Highlights the current section. Needs <Suspense>: the path is only known at request time. */
 export function NavLinks({ variant }: { variant: "top" | "bottom" }) {
-  return <NavList variant={variant} path={usePathname()} />;
+  const path = usePathname();
+  if (path === "/login") return null;
+  return <NavList variant={variant} path={path} />;
+}
+
+/** Ends the session. Hidden on the login page. */
+export function LogoutButton() {
+  if (usePathname() === "/login") return null;
+  return (
+    <form action={logoutAction}>
+      <button type="submit" className="rounded-lg px-3 py-2 text-sm font-medium text-muted hover:bg-ink/5 hover:text-ink">
+        Log out
+      </button>
+    </form>
+  );
 }
 
 /** The same links without a highlighted section; used as the Suspense fallback. */
