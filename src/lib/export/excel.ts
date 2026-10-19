@@ -1,50 +1,18 @@
 import ExcelJS from "exceljs";
-import {
-  chargeApplies,
-  UNITS_BY_GROUP,
-  type AppliesTo,
-  type CostingInput,
-  type CostingOutput,
-  type DrawingOutput,
-  type ItemOutput,
-} from "../calc/costing";
+import { chargeApplies, UNITS_BY_GROUP, type DrawingOutput, type ItemOutput } from "../calc/costing";
 import { familyOf } from "../calc/materials";
-import { buildRegistry } from "../calc/registry";
-import { itemSize } from "../calc/size";
-import type { PriceGroup } from "../calc/types";
 import { formatDate } from "../format";
+import { appliesToLabel, GROUP_LABEL, itemLabels, missingNote, type ExportData } from "./common";
+
+export type { ExportCompany, ExportHeader } from "./common";
+export { exportFileName } from "./common";
+export type ExcelExportData = ExportData;
 
 // Costing workbook (Milestone 4.1). Weights are written as numbers, exactly as the
 // engine computed them. Every rate lives on the Rates sheet; item amounts, cost
 // blocks, charges, profit and the grand total are live formulas over it, so
 // changing a rate in Excel updates the whole workbook. Each formula also carries
 // the engine's result, so the file shows the right numbers before recalculation.
-
-export interface ExportCompany {
-  companyName: string;
-  address: string;
-  email: string;
-  phone: string;
-}
-
-export interface ExportHeader {
-  clientName: string;
-  projectName: string;
-  poNo: string;
-  drawingRef: string;
-  createdBy: string;
-  /** YYYY-MM-DD */
-  costingDate: string;
-}
-
-export interface ExcelExportData {
-  company: ExportCompany;
-  header: ExportHeader;
-  input: CostingInput;
-  result: CostingOutput;
-  /** PNG logo for the letterhead. */
-  logo?: Uint8Array;
-}
 
 const KG = "#,##0.000";
 /** Indian grouping: ₹1,23,45,678.00 */
@@ -55,19 +23,6 @@ const FILL_INPUT = "FFFFF2CC";
 const FILL_MISSING = "FFFDE2E2";
 const FILL_HEAD = "FFEEF2F6";
 const RED = "FF9B1C1C";
-
-const GROUP_LABEL: Record<PriceGroup, string> = {
-  plate: "Plate by thickness",
-  size: "Size",
-  bought: "Bought-out",
-  jobwork: "Job work",
-};
-
-export function appliesToLabel(a: AppliesTo): string {
-  if (a === "ALL") return "All materials";
-  if (a === "SS" || a === "MS") return `All ${a}`;
-  return a.slice(4);
-}
 
 // ---------- small helpers ----------
 
@@ -618,7 +573,7 @@ function fillSummary(
       cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: FILL_MISSING } };
       r++;
     };
-    box(`Rates missing (${result.missing.length}) — these amounts count as 0. Enter them on the Rates sheet here or the Rates page in the app.`, true);
+    box(missingNote(result.missing.length, "the Rates sheet here or the Rates page in the app"), true);
     for (const m of result.missing) box(`•  ${m.label}`);
     r++;
   }
@@ -707,9 +662,7 @@ export function buildCostingWorkbook(data: ExcelExportData): ExcelJS.Workbook {
   const logoId = data.logo
     ? wb.addImage({ buffer: Buffer.from(data.logo) as unknown as ExcelJS.Buffer, extension: "png" })
     : undefined;
-  const registry = buildRegistry(data.input.customShapes);
-  const typeLabel = (id: string) => registry.get(id)?.label ?? id;
-  const sizeOf = (it: ItemOutput) => itemSize(registry.get(it.item.type), it.item.inputs, data.input.sections);
+  const { typeLabel, sizeOf } = itemLabels(data.input);
 
   const summary = wb.addWorksheet("Summary", { properties: { tabColor: { argb: "FF1F4E79" } } });
   const names = sheetNames(data.result.drawings);
@@ -729,10 +682,4 @@ export function buildCostingWorkbook(data: ExcelExportData): ExcelJS.Workbook {
 export async function costingWorkbookBuffer(data: ExcelExportData): Promise<Uint8Array> {
   const buf = await buildCostingWorkbook(data).xlsx.writeBuffer();
   return new Uint8Array(buf as ArrayBuffer);
-}
-
-/** "Costing - Client - Project.xlsx", safe for a download name. */
-export function exportFileName(header: ExportHeader, ext: string): string {
-  const base = ["Costing", header.clientName, header.projectName].filter(Boolean).join(" - ");
-  return `${base.replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim().slice(0, 120)}.${ext}`;
 }

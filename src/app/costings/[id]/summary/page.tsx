@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 import { Card, CardHeader, PageTitle, Skeleton, Stat } from "@/components/ui";
-import type { DrawingOutput } from "@/lib/calc/costing";
-import { familyOf } from "@/lib/calc/materials";
+import { familySums } from "@/lib/export/common";
 import { inr, kg } from "@/lib/format";
 import { loadCosting } from "@/server/load";
 import { MissingRatesBanner } from "@/components/missing-rates";
@@ -14,22 +13,6 @@ export default function SummaryPage(props: PageProps<"/costings/[id]/summary">) 
       <Summary params={props.params} />
     </Suspense>
   );
-}
-
-function familySums(d: DrawingOutput) {
-  const s = { ssProcess: 0, ssScrap: 0, msProcess: 0, msScrap: 0, finish: 0 };
-  for (const t of d.byMaterial) {
-    const fam = familyOf(t.material);
-    if (fam === "SS") {
-      s.ssProcess += t.process;
-      s.ssScrap += t.scrap;
-    } else if (fam === "MS") {
-      s.msProcess += t.process;
-      s.msScrap += t.scrap;
-    }
-    s.finish += t.finish;
-  }
-  return s;
 }
 
 async function Summary({ params }: { params: Promise<{ id: string }> }) {
@@ -65,9 +48,13 @@ async function Summary({ params }: { params: Promise<{ id: string }> }) {
             >
               Export Excel
             </a>
-            <button disabled title="Coming in step 4.2" className="h-10 rounded-lg border border-line bg-white px-3.5 text-sm font-medium opacity-50">
-              PDF
-            </button>
+            <a
+              href={`/costings/${c.id}/export/pdf`}
+              download
+              className="inline-flex h-10 items-center rounded-lg border border-line bg-white px-3.5 text-sm font-medium hover:bg-paper"
+            >
+              Export PDF
+            </a>
           </div>
         }
       />
