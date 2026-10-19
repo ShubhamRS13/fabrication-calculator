@@ -88,24 +88,37 @@ export const costingMaterialRates = pgTable(
   (t) => [primaryKey({ columns: [t.costingId, t.material] })],
 );
 
-export const sizeRateUnit = pgEnum("size_rate_unit", ["kg", "m", "piece"]);
+export const priceGroup = pgEnum("price_group", ["plate", "size", "bought", "jobwork"]);
+export const priceUnit = pgEnum("price_unit", ["kg", "m", "piece", "set"]);
 
 /**
- * Size-wise rates for one costing (pipes, tubes, bars, rolled sections, flats):
- * key = material + size, e.g. "SS304|Pipe 50 NB SCH 40". Blank rate = use the
- * material ₹/kg rate.
+ * Every rate on a costing's Pricing page other than material ₹/kg and charge
+ * lines: plate thickness, section sizes, bought-outs and job work.
+ * key = group|material|label, e.g. "bought|SS304|Stub end 50 NB Long SCH 10S".
+ * Blank rate = missing; 0 = deliberately free.
  */
-export const costingSizeRates = pgTable(
-  "costing_size_rates",
+export const costingPrices = pgTable(
+  "costing_prices",
   {
     costingId: uuid("costing_id").notNull().references(() => costings.id, { onDelete: "cascade" }),
     key: text("key").notNull(),
+    group: priceGroup("group").notNull(),
+    material: text("material").notNull(),
     label: text("label").notNull(),
     rate: doublePrecision("rate"),
-    unit: sizeRateUnit("unit").notNull().default("kg"),
+    unit: priceUnit("unit").notNull(),
   },
-  (t) => [primaryKey({ columns: [t.costingId, t.key] })],
+  (t) => [primaryKey({ columns: [t.costingId, t.key] }), index("costing_prices_key_idx").on(t.key)],
 );
+
+/** Bought-out catalogue kinds (built-in ones seeded; more added in Settings). */
+export const boughtKinds = pgTable("bought_kinds", {
+  name: text("name").primaryKey(),
+  template: text("template").notNull(),
+  unit: priceUnit("unit").notNull().default("piece"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  builtIn: boolean("built_in").notNull().default(false),
+});
 
 export const chargeBasis = pgEnum("charge_basis", ["process", "finish"]);
 

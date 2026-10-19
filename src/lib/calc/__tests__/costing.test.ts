@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeCosting, defaultChargeLines, sizeRateRows, type CostingInput } from "../costing";
+import { computeCosting, defaultChargeLines, type CostingInput } from "../costing";
 import { DEFAULT_MATERIALS } from "../materials";
 
 function baseCosting(): CostingInput {
@@ -131,10 +131,11 @@ describe("costing engine", () => {
   });
 });
 
-describe("size-wise rates", () => {
-  function pipes(): CostingInput {
+describe("pricing page rates", () => {
+  const SS = "SS304";
+  function base(): CostingInput {
     return {
-      defaultMaterial: "SS304",
+      defaultMaterial: SS,
       burningPct: 3,
       profitPct: 0,
       materials: DEFAULT_MATERIALS,
@@ -144,11 +145,17 @@ describe("size-wise rates", () => {
         {
           id: "d",
           drawingNo: "P-01",
-          title: "Pipes",
+          title: "Mixed",
           items: [
             { id: "a", type: "pipe-sch", name: "50 NB", qty: 2, inputs: { sch: "10S", nb: "50", length: 3000 } },
             { id: "b", type: "pipe-sch", name: "50 NB again", qty: 1, inputs: { sch: "10S", nb: "50", length: 1000 } },
             { id: "c", type: "pipe-sch", name: "25 NB", qty: 1, inputs: { sch: "10S", nb: "25", length: 1000 } },
+            { id: "p3", type: "plate", name: "PLATE 3", qty: 1, inputs: { length: 1000, width: 1000, thk: 3 } },
+            { id: "p6", type: "plate", name: "PLATE 6", qty: 1, inputs: { length: 1000, width: 1000, thk: 6 } },
+            { id: "s1", type: "bought", name: "STUBEND LONG", qty: 4, inputs: { kind: "Stub end", nb: "50", stub: "Long", rating: "SCH 10S" } },
+            { id: "s2", type: "bought", name: "Long stub end", qty: 2, inputs: { kind: "Stub end", nb: "50", stub: "Long", rating: "SCH 10S" } },
+            { id: "h", type: "bought", name: "HOSE", qty: 3, inputs: { kind: "Hose", nb: "20", pieceLength: 1500 } },
+            { id: "dish", type: "dish-tori", name: "TOP DISH", qty: 2, inputs: { dia: 800, diaRef: "OD", crown: 800, knuckle: 80, thk: 5 } },
           ],
         },
       ],
@@ -156,37 +163,77 @@ describe("size-wise rates", () => {
   }
 
   it("blank size rate falls back to the material rate", () => {
-    const out = computeCosting(pipes());
+    const out = computeCosting(base());
     const it = out.drawings[0].items[0];
-    expect(it.sizeKey).toBe("SS304|Pipe 50 NB SCH 10S");
+    expect(it.price?.key).toBe("size|SS304|Pipe 50 NB SCH 10S");
     expect(it.pricedBy).toBe("material");
     expect(it.materialAmount).toBeCloseTo(it.processWt * 1.03 * 220, 9);
   });
 
-  it("₹/m, ₹/kg and ₹/piece; different sizes get different rates", () => {
-    const c = pipes();
-    c.sizeRates = { "SS304|Pipe 50 NB SCH 10S": { rate: 900, unit: "m" }, "SS304|Pipe 25 NB SCH 10S": { rate: 400, unit: "kg" } };
+  it("₹/m, ₹/kg and ₹/piece for sizes", () => {
+    const c = base();
+    c.prices = { "size|SS304|Pipe 50 NB SCH 10S": { rate: 900, unit: "m" }, "size|SS304|Pipe 25 NB SCH 10S": { rate: 400, unit: "kg" } };
     const items = computeCosting(c).drawings[0].items;
-    expect(items[0].materialAmount).toBeCloseTo(6 * 900, 9); // 2 × 3 m
-    expect(items[1].materialAmount).toBeCloseTo(1 * 900, 9);
+    expect(items[0].materialAmount).toBeCloseTo(6 * 900, 9);
+    expect(items[1].materialAmount).toBeCloseTo(900, 9);
     expect(items[2].materialAmount).toBeCloseTo(items[2].processWt * 1.03 * 400, 9);
-    c.sizeRates["SS304|Pipe 50 NB SCH 10S"] = { rate: 2500, unit: "piece" };
+    c.prices["size|SS304|Pipe 50 NB SCH 10S"] = { rate: 2500, unit: "piece" };
     expect(computeCosting(c).drawings[0].items[0].materialAmount).toBeCloseTo(2 * 2500, 9);
   });
 
-  it("rate chart rows group by size across items", () => {
-    const rows = sizeRateRows(computeCosting(pipes()));
-    expect(rows.map((r) => r.label)).toEqual(["Pipe 25 NB SCH 10S", "Pipe 50 NB SCH 10S"]);
-    const p50 = rows[1];
-    expect(p50.m).toBeCloseTo(7, 9);
-    expect(p50.pieces).toBe(3);
-    expect(p50.drawings).toEqual(["P-01"]);
+  it("plate rates by thickness; blank thickness uses the material rate", () => {
+    const c = base();
+    c.prices = { "plate|SS304|6 mm": { rate: 260, unit: "kg" } };
+    const items = computeCosting(c).drawings[0].items;
+    const p3 = items.find((i) => i.item.id === "p3")!;
+    const p6 = items.find((i) => i.item.id === "p6")!;
+    expect(p3.price?.key).toBe("plate|SS304|3 mm");
+    expect(p3.materialAmount).toBeCloseTo(p3.processWt * 1.03 * 220, 9);
+    expect(p6.materialAmount).toBeCloseTo(p6.processWt * 1.03 * 260, 9);
   });
 
-  it("drawing material total uses the size rate", () => {
-    const c = pipes();
-    c.sizeRates = { "SS304|Pipe 50 NB SCH 10S": { rate: 900, unit: "m" } };
+  it("bought-outs: the same stub end written two ways is one row; hose priced per metre", () => {
+    const c = base();
+    const out = computeCosting(c);
+    const stub = out.prices.filter((r) => r.group === "bought" && r.label.startsWith("Stub end"));
+    expect(stub).toHaveLength(1);
+    expect(stub[0].label).toBe("Stub end 50 NB Long SCH 10S");
+    expect(stub[0].pieces).toBe(6);
+    expect(stub[0].missing).toBe(true);
+    c.prices = {
+      "bought|SS304|Stub end 50 NB Long SCH 10S": { rate: 450, unit: "piece" },
+      "bought|SS304|Hose 20 NB": { rate: 300, unit: "m" },
+    };
     const d = computeCosting(c).drawings[0];
-    expect(d.materialTotal).toBeCloseTo(7 * 900 + d.items[2].materialAmount, 9);
+    expect(d.items.find((i) => i.item.id === "s1")!.fixedAmount).toBe(1800);
+    expect(d.items.find((i) => i.item.id === "h")!.fixedAmount).toBeCloseTo(3 * 1.5 * 300, 9);
+    // Price only: bought items never add to material weight or labour.
+    expect(d.byMaterial.find((t) => t.material === "SS304")!.finish).toBeCloseTo(
+      d.items.filter((i) => i.unit?.costedByWeight).reduce((a, i) => a + i.finishWt, 0),
+      9,
+    );
+  });
+
+  it("dish job work is priced per dish size; 0 means free, blank is missing", () => {
+    const c = base();
+    let out = computeCosting(c);
+    const job = out.prices.find((r) => r.group === "jobwork")!;
+    expect(job.label).toBe("Torispherical dish forming – D 800 OD × 5");
+    expect(out.missing.map((m) => m.label)).toContain(`SS304 · ${job.label}`);
+    c.prices = { [job.key]: { rate: 0, unit: "piece" } };
+    out = computeCosting(c);
+    expect(out.missing.map((m) => m.label)).not.toContain(`SS304 · ${job.label}`);
+    c.prices = { [job.key]: { rate: 3500, unit: "piece" } };
+    expect(computeCosting(c).drawings[0].boughtTotal).toBeCloseTo(7000, 9);
+  });
+
+  it("missing list: material rate, bought-outs, and charge lines that apply", () => {
+    const c = base();
+    c.rates = {};
+    c.chargeLines = [{ id: "l", name: "Labour – SS", rate: null, basis: "finish", appliesTo: "SS" }];
+    const labels = computeCosting(c).missing.map((m) => m.label);
+    expect(labels).toContain("SS304 rate (₹/kg)");
+    expect(labels).toContain("Labour – SS");
+    expect(labels.some((l) => l.includes("Stub end"))).toBe(true);
   });
 });

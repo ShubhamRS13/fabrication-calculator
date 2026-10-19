@@ -1,7 +1,9 @@
 import { DEFAULT_MATERIALS } from "@/lib/calc/materials";
 import { builtInSectionRows } from "@/lib/calc/sections-lib";
+import { DEFAULT_KINDS } from "@/lib/calc/bought-catalogue";
+import { migrateLegacyPricing } from "@/server/migrate-pricing";
 import type { Db } from "./index";
-import { materials, sectionSizes, settings } from "./schema";
+import { boughtKinds, materials, sectionSizes, settings } from "./schema";
 
 export const COMPANY = {
   companyName: "Shubhangi Engineers",
@@ -22,4 +24,11 @@ export async function seed(db: Db) {
     .insert(sectionSizes)
     .values(builtInSectionRows().map((r) => ({ ...r, builtIn: true })))
     .onConflictDoNothing({ target: [sectionSizes.series, sectionSizes.size] });
+  // Bought-out catalogue: built-in kinds that are missing; your own kinds are kept.
+  await db
+    .insert(boughtKinds)
+    .values(DEFAULT_KINDS.map((k, i) => ({ ...k, sortOrder: i, builtIn: true })))
+    .onConflictDoNothing();
+  // Review 2: per-item bought rates and dish job work move to the Pricing page.
+  await migrateLegacyPricing(db);
 }

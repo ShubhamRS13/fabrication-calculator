@@ -43,10 +43,14 @@ const selectOptions = (f: FieldDef, values: Values, lib: SectionLibrary) =>
  * Keep dependent selects valid: when a choice changes (e.g. series), any later
  * select whose value is no longer offered (e.g. size) takes its first option.
  */
+const shown = (f: FieldDef, values: Values, lib: SectionLibrary) =>
+  !f.showIf || f.showIf(values as Record<string, InputValue>, lib);
+
 function reconcile(t: ItemType, values: Values, lib: SectionLibrary): Values {
   const v = { ...values };
   for (const f of t.fields) {
-    if (f.kind !== "select") continue;
+    // Hidden fields may share a key with a visible one (e.g. "rating"); leave them alone.
+    if (f.kind !== "select" || !shown(f, v, lib)) continue;
     const options = selectOptions(f, v, lib);
     if (options.length && !options.some((o) => o.value === v[f.key])) v[f.key] = options[0].value;
   }
@@ -182,6 +186,8 @@ function ItemEditorForm({
     }
   }, [type, values, density, effMaterial, sectionLib]);
 
+  const priceName = type && live && !live.error ? type.priceRef?.(live.inputs, sectionLib)?.label : undefined;
+
   // ---------- save ----------
   function save(another: boolean) {
     if (!type || !live) return;
@@ -194,7 +200,7 @@ function ItemEditorForm({
       name: name.trim(),
       dwgSheet: dwgSheet.trim(),
       qty: qtyNum,
-      material: type.category === "bought" ? null : material || null,
+      material: material || null,
       assemblyId: assemblyId || null,
       inputs: live.inputs,
     };
@@ -233,7 +239,7 @@ function ItemEditorForm({
     return (
       <div className="space-y-4">
         {CATEGORIES.map((cat) => {
-          const types = [...registry.values()].filter((t) => t.category === cat.id);
+          const types = [...registry.values()].filter((t) => t.category === cat.id && (!t.hidden || t.id === typeId));
           if (!types.length) return null;
           // Group by family (Cylinders, Cones, Vessel end caps…), keeping registry order.
           const families = [...new Set(types.map((t) => t.family ?? ""))];
@@ -316,7 +322,7 @@ function ItemEditorForm({
               <Label>DWG sheet no.</Label>
               <Input value={dwgSheet} onChange={(e) => setDwgSheet(e.target.value)} />
             </label>
-            {!isBought && (
+            {(
               <label className="block">
                 <Label>Material</Label>
                 <Select value={material} onChange={(e) => setMaterial(e.target.value)}>
@@ -351,7 +357,7 @@ function ItemEditorForm({
           )}
           <div className="grid gap-3 p-4 sm:grid-cols-2">
             {type.fields
-              .filter((f) => !f.showIf || f.showIf(values as Record<string, InputValue>))
+              .filter((f) => shown(f, values, sectionLib))
               .map((f) => (
                 <FieldInput key={f.key} field={f} values={values} lib={sectionLib} onChange={(v) => setValues((s) => reconcile(type, { ...s, [f.key]: v }, sectionLib))} />
               ))}
@@ -369,14 +375,17 @@ function ItemEditorForm({
 
       <div className="space-y-4 lg:sticky lg:top-20 lg:self-start">
         <Card>
-          <CardHeader title="Result" sub={isBought ? "Priced qty × rate" : `${effMaterial} · density ${density ?? "?"} g/cc`} />
+          <CardHeader title="Result" sub={isBought ? `${effMaterial} · priced on the Pricing page` : `${effMaterial} · density ${density ?? "?"} g/cc`} />
           <div className="px-4 py-2">
             {live?.error && <p className="py-2 text-sm text-muted">{live.error}</p>}
             {r && isBought && (
               <>
-                <Stat label="Price per piece" value={inr(r.fixedCost)} />
-                <Stat label={`Total for ${num(multiplier)}`} value={inr(r.fixedCost * multiplier)} strong />
-                {r.finishWt > 0 && <Stat label="Weight (info only)" value={`${kg(r.finishWt * multiplier)} kg`} />}
+                {priceName && <Stat label="Priced as" value={priceName} />}
+                <Stat label="Quantity" value={num(multiplier)} />
+                {r.fixedCost > 0 && <Stat label="Rate on this item (older entry)" value={inr(r.fixedCost)} />}
+                <p className="py-2 text-xs text-muted">
+                  The same item, size and material on any drawing shares one rate, entered on the costing&apos;s Pricing page. Price only — no weight is added.
+                </p>
               </>
             )}
             {r && !isBought && (

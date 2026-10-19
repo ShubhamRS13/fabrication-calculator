@@ -37,8 +37,11 @@ const COMMON_TAIL: FieldDef[] = [
     default: "meridian",
   },
   THK,
-  { key: "jobWork", label: "Job-work charge per piece", kind: "number", unit: "₹", optional: true },
 ];
+
+/** Dish forming by a third party is priced on the Pricing page, per dish size. */
+const dishJob = (name: string) => (inp: ItemInputs) =>
+  `${name} forming – D ${str(inp, "dia")} ${str(inp, "diaRef", "OD")} × ${str(inp, "thk")}`;
 const FAMILY = "Vessel end caps";
 const MARK_LINES = 24;
 
@@ -152,6 +155,7 @@ export const dishHemi: ItemType = {
   label: "End cap – hemispherical",
   description: "An end cap to fit over a cylinder; half a sphere, set by the base diameter.",
   formulaText: ["a = D/2 (mean)", "L = π a / 2,  A = 2π a²", "Blank radius = L + SF  (or √((A + 2π a SF)/π))"],
+  jobWorkRef: dishJob("Hemispherical dish"),
   fields: [DIA, DIA_REF, ...COMMON_TAIL],
   compute: (inp, { density }) =>
     developHead(
@@ -169,6 +173,7 @@ export const dishEllip: ItemType = {
   label: "End cap – semi-elliptical",
   description: "An end cap with an elliptical cross-section, set by the base diameter and the dish height (2:1 head: height = D/4).",
   formulaText: ["a = D/2 (mean), b = dish height h", "x = a sin u,  ds = √(a² cos² u + b² sin² u) du", "L = ∫ ds,  A = ∫ 2π x ds"],
+  jobWorkRef: dishJob("Semi-elliptical dish"),
   fields: [DIA, DIA_REF, { key: "depth", label: "Dish height h", kind: "number", unit: "mm", help: "2:1 head: D/4" }, ...COMMON_TAIL],
   compute: (inp, { density }) => {
     const b = pos(inp, "depth", "Dish height h");
@@ -196,6 +201,7 @@ export const dishTori: ItemType = {
     "L = CR × α + KR × (π/2 − α)",
     "A = 2π CR² (1 − cos α) + 2π KR [(a − KR)(π/2 − α) + KR cos α]",
   ],
+  jobWorkRef: dishJob("Torispherical dish"),
   fields: [
     DIA,
     DIA_REF,

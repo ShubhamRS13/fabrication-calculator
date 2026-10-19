@@ -55,11 +55,22 @@ export async function setMaterialRateAction(
   return run(() => dal.setMaterialRate(getDb(), v.id.parse(costingId), rate), [costingPath(costingId)]);
 }
 
-export async function setSizeRateAction(
-  costingId: string,
-  rate: { key: string; label: string; rate: number | null; unit: "kg" | "m" | "piece" },
-) {
-  return run(() => dal.setSizeRate(getDb(), v.id.parse(costingId), rate), [costingPath(costingId)]);
+type PriceData = {
+  key: string;
+  group: "plate" | "size" | "bought" | "jobwork";
+  material: string;
+  label: string;
+  rate: number | null;
+  unit: "kg" | "m" | "piece" | "set";
+};
+
+export async function setPriceAction(costingId: string, price: PriceData) {
+  return run(() => dal.setPrice(getDb(), v.id.parse(costingId), price), [costingPath(costingId)]);
+}
+
+/** Fill every blank rate in this costing from another costing. Returns how many were filled. */
+export async function fillBlankRatesAction(costingId: string, sourceId: string) {
+  return run(() => dal.fillBlankRates(getDb(), v.id.parse(costingId), v.id.parse(sourceId)), [costingPath(costingId)]);
 }
 
 // ---------- charge lines ----------
@@ -153,4 +164,12 @@ export async function upsertSectionSizeAction(data: { series: string; size: stri
 
 export async function deleteSectionSizeAction(id: string) {
   return run(() => lib.deleteSectionSize(getDb(), v.id.parse(id)), ["/"]);
+}
+
+export async function addBoughtKindAction(data: { name: string; template: string; unit: "piece" | "set" | "kg" | "m" }) {
+  return run(() => lib.addBoughtKind(getDb(), data), ["/"]);
+}
+
+export async function deleteBoughtKindAction(name: string) {
+  return run(() => lib.deleteBoughtKind(getDb(), name), ["/"]);
 }

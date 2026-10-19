@@ -2,8 +2,9 @@ import Image from "next/image";
 import { Suspense } from "react";
 import { CompanyForm, CustomShapeForm, DeleteShapeButton, MaterialsEditor } from "@/components/settings-forms";
 import { SectionTablesEditor } from "@/components/section-tables-editor";
+import { BoughtKindsEditor } from "@/components/bought-kinds-editor";
 import { Card, CardHeader, Empty, PageTitle, Skeleton } from "@/components/ui";
-import { getCustomShapes, getMaterials, getSectionSizes, getSettings } from "@/server/queries";
+import { getBoughtKinds, getCustomShapes, getMaterials, getSectionSizes, getSettings } from "@/server/queries";
 
 export const metadata = { title: "Library & settings" };
 
@@ -19,7 +20,7 @@ export default function SettingsPage() {
 }
 
 async function Settings() {
-  const [company, materials, shapes, sections] = await Promise.all([getSettings(), getMaterials(), getCustomShapes(), getSectionSizes()]);
+  const [company, materials, shapes, sections, kinds] = await Promise.all([getSettings(), getMaterials(), getCustomShapes(), getSectionSizes(), getBoughtKinds()]);
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -62,6 +63,10 @@ async function Settings() {
           </details>
         </Card>
 
+        <Card>
+          <CardHeader title="Bought-out items" sub="The list you pick bought-outs from. Add your own kinds; built-in ones stay" />
+          <BoughtKindsEditor kinds={kinds.map(({ name, template, unit, builtIn }) => ({ name, template, unit, builtIn }))} />
+        </Card>
         <Card>
           <CardHeader title="Section & pipe tables" sub="Starter values from IS 808 / ASME / IS 1239 — check against supplier data" />
           <SectionTablesEditor rows={sections.map(({ id, series, size, data, builtIn }) => ({ id, series, size, data, builtIn }))} />

@@ -1,14 +1,18 @@
-import { CalcError, type ItemType, type Pt } from "../types";
+import { CalcError, type ItemInputs, type ItemType, type Pt } from "../types";
+import { allSizeFields, boughtLabel, findKind } from "../bought-catalogue";
+import { BUILT_IN_LIBRARY, type SectionLibrary } from "../sections-lib";
 import { f, optNum, pos, str } from "../helpers";
 import { circle, polar } from "../dev/geometry";
 import { devResult } from "../dev/result";
 
 /** Bought items: priced qty × rate. Weight is optional and never costed by ₹/kg. */
+/** Older bought types (rate on the item). Kept so saved items work; the picker shows "Bought-out item". */
 function boughtType(id: string, label: string, extraFields: ItemType["fields"]): ItemType {
   return {
     id,
     category: "bought",
     label,
+    hidden: true,
     fields: [
       ...extraFields,
       { key: "rate", label: "Rate per piece", kind: "number", unit: "₹" },
@@ -29,6 +33,57 @@ function boughtType(id: string, label: string, extraFields: ItemType["fields"]):
     },
   };
 }
+
+/**
+ * Bought-out item from the catalogue: kind → size fields → material. No rate here:
+ * items of the same kind, size and material share one rate on the Pricing page.
+ * Price only — any weight is information and never counts in material or labour.
+ */
+export const boughtOut: ItemType = {
+  id: "bought",
+  category: "bought",
+  family: "Bought-outs",
+  label: "Bought-out item",
+  description: "Flanges, stub ends, fittings, fasteners, hoses, gaskets… picked from the catalogue. Priced on the Pricing page.",
+  formulaText: ["Price = quantity × rate (₹/piece, ₹/set, ₹/kg or ₹/m, set on the Pricing page)"],
+  fields: [
+    {
+      key: "kind",
+      label: "Item",
+      kind: "select",
+      dependentOptions: (_i, lib) => lib.boughtKinds.map((k) => ({ value: k.name, label: k.name })),
+    },
+    ...allSizeFields().map(({ field, templates }) => ({
+      ...field,
+      showIf: (inp: ItemInputs, lib: SectionLibrary) => {
+        const k = findKind(lib.boughtKinds, str(inp, "kind"));
+        return !!k && templates.includes(k.template);
+      },
+    })),
+    { key: "weight", label: "Weight per piece (for ₹/kg)", kind: "number", unit: "kg", optional: true },
+    { key: "pieceLength", label: "Length per piece (for ₹/m)", kind: "number", unit: "mm", optional: true },
+  ],
+  priceRef(inp, lib) {
+    const kind = findKind(lib.boughtKinds, str(inp, "kind"));
+    return kind ? { group: "bought", label: boughtLabel(kind, inp) } : null;
+  },
+  compute(inp, ctx) {
+    const lib = ctx.lib ?? BUILT_IN_LIBRARY;
+    const kind = findKind(lib.boughtKinds, str(inp, "kind"));
+    if (!kind) throw new CalcError("Choose the item from the list");
+    if (kind.template === "other" && !str(inp, "desc").trim()) throw new CalcError("Description is required");
+    const wt = optNum(inp, "weight");
+    return {
+      finishWt: wt,
+      processWt: wt,
+      scrap: 0,
+      fixedCost: 0,
+      costedByWeight: false,
+      formula: `${boughtLabel(kind, inp)}
+Priced on the Pricing page (quantity × rate)`,
+    };
+  },
+};
 
 export const boughtFlange = boughtType("bought-flange", "Standard flange (bought)", [
   { key: "size", label: "Size", kind: "text" },
@@ -80,8 +135,9 @@ export const dishedEnd: ItemType = {
     { key: "sf", label: "Straight face", kind: "number", unit: "mm", default: 0, optional: true },
     { key: "factor", label: "Blank factor (override)", kind: "number", optional: true },
     { key: "blankDia", label: "Blank dia (overrides factor)", kind: "number", unit: "mm", optional: true },
-    { key: "jobWork", label: "Job-work charge per piece", kind: "number", unit: "₹", optional: true },
   ],
+  jobWorkRef: (inp) =>
+    str(inp, "blankDia") ? `Dish forming – blank Ø${str(inp, "blankDia")} × ${str(inp, "thk")}` : `Dish forming – OD ${str(inp, "od")} × ${str(inp, "thk")}`,
   compute(inp, { density }) {
     const t = pos(inp, "thk", "THK");
     const givenBlank = optNum(inp, "blankDia");

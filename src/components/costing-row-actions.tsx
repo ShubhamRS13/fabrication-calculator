@@ -12,7 +12,7 @@ export function CostingRowActions({ id, name, redirectAfterDelete }: { id: strin
   const duplicate = () =>
     start(async () => {
       const res = await duplicateCostingAction(id);
-      if (res.ok) router.push(`/costings/${res.data}/setup`);
+      if (res.ok) router.push(`/costings/${res.data}/pricing`);
       else alert(res.error);
     });
 

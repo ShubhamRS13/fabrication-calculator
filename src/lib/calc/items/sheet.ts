@@ -48,7 +48,7 @@ export const flat: ItemType = {
   label: "Flat",
   description: "A flat bar cut to length (e.g. 50 × 10). No scrap: process weight = finish weight.",
   formulaText: ["kg/m = W × t × ρ / 1000", "Weight = kg/m × L / 1000"],
-  sizeLabel: (i) => `Flat ${String(i.width ?? "")} × ${String(i.thk ?? "")}`,
+  priceRef: (i) => ({ group: "size", label: `Flat ${String(i.width ?? "")} × ${String(i.thk ?? "")}` }),
   fields: [
     { key: "width", label: "Width W", kind: "number", unit: "mm" },
     THK,
@@ -102,6 +102,7 @@ export const disc: ItemType = {
 };
 
 const fromFlat = (inp: ItemInputs) => inp.madeFrom === "flat";
+const num0 = (x: unknown) => Number(x) || 0;
 
 export const ringFlange: ItemType = {
   id: "ring-flange",
@@ -115,6 +116,10 @@ export const ringFlange: ItemType = {
     "From flat: W = (OD − ID) / 2,  L = π × (OD + ID) / 2",
     "From flat: Process = W × (L + allowance) × t × ρ / 1e6",
   ],
+  priceRef: (i) =>
+    fromFlat(i)
+      ? { group: "size", label: `Flat ${(num0(i.od) - num0(i.id)) / 2} × ${String(i.thk ?? "")}` }
+      : { group: "plate", label: `${String(i.thk ?? "")} mm` },
   fields: [
     {
       key: "madeFrom",

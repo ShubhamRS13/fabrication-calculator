@@ -48,10 +48,11 @@ async function Drawing({ params }: { params: Promise<{ id: string; drawingId: st
             {it.multiplier !== it.item.qty && ` (× ${num(it.multiplier / it.item.qty)} = ${num(it.multiplier)})`}
           </p>
           {it.error && <p className="text-sm text-danger">{it.error}</p>}
+          {!it.error && it.missing && <p className="text-xs font-medium text-danger">Rate missing — see Pricing</p>}
         </div>
         <div className="shrink-0 text-right text-sm tabular-nums">
           {it.unit?.costedByWeight === false ? (
-            <p className="font-medium">{inr(it.fixedAmount)}</p>
+            <p className="font-medium">{it.missing ? "—" : inr(it.fixedAmount)}</p>
           ) : (
             <>
               <p className="font-medium">{kg(it.processWt)} kg</p>

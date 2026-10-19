@@ -8,7 +8,7 @@ export const metadata = { title: "New costing" };
 export default function NewCostingPage() {
   return (
     <>
-      <PageTitle title="New costing" back={{ href: "/", label: "Costings" }} sub="Rates and charge lines are filled in on the next screen." />
+      <PageTitle title="New costing" back={{ href: "/", label: "Costings" }} sub="Rates, charges and profit go on the costing's Pricing page." />
       <Card>
         <Suspense fallback={<div className="p-4"><Skeleton lines={3} /></div>}>
           <NewForm />
@@ -33,7 +33,6 @@ async function NewForm() {
         costingDate: today,
         defaultMaterial: materials.includes("SS304") ? "SS304" : materials[0],
         burningPct: 3,
-        profitPct: 0,
       }}
     />
   );

@@ -1,12 +1,13 @@
 import { asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "@/db";
-import { customShapes, items, materials, sectionSizes, settings } from "@/db/schema";
+import { boughtKinds, customShapes, items, materials, sectionSizes, settings } from "@/db/schema";
 import { validateCustomShape } from "@/lib/calc/custom";
 import { COMPANY } from "@/db/seed";
 import { InvalidInputError, NotFoundError } from "./costings";
 import * as v from "./validation";
 import { kindOf } from "@/lib/calc/sections-lib";
+import { TEMPLATE_LABEL } from "@/lib/calc/bought-catalogue";
 
 // Library and settings: company details, materials, custom shapes, section tables.
 
@@ -109,4 +110,37 @@ export async function deleteSectionSize(db: Db, id: string) {
   if (!row) throw new NotFoundError("Section size");
   if (row.builtIn) throw new InvalidInputError("Built-in sizes cannot be deleted; correct the value instead");
   await db.delete(sectionSizes).where(eq(sectionSizes.id, id));
+}
+
+// ---------- bought-out catalogue ----------
+
+export const boughtKindSchema = z.object({
+  name: z.string().trim().min(2, "Name is required").max(60),
+  template: z.enum(Object.keys(TEMPLATE_LABEL) as [string, ...string[]]),
+  unit: z.enum(["piece", "set", "kg", "m"]),
+});
+
+export async function listBoughtKinds(db: Db) {
+  return db.select().from(boughtKinds).orderBy(asc(boughtKinds.sortOrder), asc(boughtKinds.name));
+}
+
+export async function addBoughtKind(db: Db, input: z.input<typeof boughtKindSchema>) {
+  const k = boughtKindSchema.parse(input);
+  const [{ max }] = await db.select({ max: sql<number | null>`max(${boughtKinds.sortOrder})` }).from(boughtKinds);
+  const res = await db
+    .insert(boughtKinds)
+    .values({ ...k, unit: k.unit as "piece" | "set" | "kg" | "m", sortOrder: (max ?? -1) + 1, builtIn: false })
+    .onConflictDoNothing()
+    .returning({ name: boughtKinds.name });
+  if (!res.length) throw new InvalidInputError(`"${k.name}" is already in the list`);
+}
+
+/** Only kinds you added, and only while no item uses them. */
+export async function deleteBoughtKind(db: Db, name: string) {
+  const [row] = await db.select().from(boughtKinds).where(eq(boughtKinds.name, name));
+  if (!row) throw new NotFoundError("Item kind");
+  if (row.builtIn) throw new InvalidInputError("Built-in kinds cannot be deleted");
+  const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(items).where(sql`${items.type} = 'bought' and ${items.inputs}->>'kind' = ${name}`);
+  if (n > 0) throw new InvalidInputError(`"${name}" is used by ${n} item${n === 1 ? "" : "s"}`);
+  await db.delete(boughtKinds).where(eq(boughtKinds.name, name));
 }

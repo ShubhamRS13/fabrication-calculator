@@ -5,14 +5,14 @@ import { CYLINDER_TYPES } from "./items/cylinders";
 import { DISH_TYPES } from "./items/dish-ends";
 import { pyramidHopper, rectDuct } from "./items/panels";
 import { SECTION_TYPES } from "./items/sections";
-import { boughtDish, boughtFlange, boughtMisc, dishedEnd } from "./items/bought";
+import { boughtDish, boughtFlange, boughtMisc, boughtOut, dishedEnd } from "./items/bought";
 import { makeCustomItemType, type CustomShapeDef } from "./custom";
 
 export const BUILT_IN_TYPES: ItemType[] = [
   ...CYLINDER_TYPES, ...CONE_TYPES, ...DISH_TYPES,
   plate, flat, disc, ringFlange, rectFlange, pyramidHopper, rectDuct, bentPlate,
   ...SECTION_TYPES,
-  boughtFlange, boughtDish, boughtMisc, dishedEnd,
+  boughtOut, dishedEnd, boughtFlange, boughtDish, boughtMisc,
 ];
 
 export function buildRegistry(customShapes: CustomShapeDef[] = []): Map<string, ItemType> {

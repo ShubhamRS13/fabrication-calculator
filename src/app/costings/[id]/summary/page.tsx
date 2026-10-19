@@ -4,6 +4,7 @@ import type { DrawingOutput } from "@/lib/calc/costing";
 import { familyOf } from "@/lib/calc/materials";
 import { inr, kg } from "@/lib/format";
 import { loadCosting } from "@/server/load";
+import { MissingRatesBanner } from "@/components/missing-rates";
 
 export const metadata = { title: "Summary" };
 
@@ -61,6 +62,7 @@ async function Summary({ params }: { params: Promise<{ id: string }> }) {
           </button>
         }
       />
+      <MissingRatesBanner missing={result.missing} href={`/costings/${c.id}/pricing`} />
       <Card>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[56rem] text-sm tabular-nums">

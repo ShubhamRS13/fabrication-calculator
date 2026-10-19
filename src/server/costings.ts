@@ -2,7 +2,7 @@ import { and, asc, desc, eq, exists, ilike, inArray, isNull, or, sql } from "dri
 import type { z } from "zod";
 import type { Db } from "@/db";
 import {
-  assemblies, chargeLines, costingMaterialRates, costingSizeRates, costings, customShapes, drawings, items, materials, sectionSizes,
+  assemblies, chargeLines, boughtKinds, costingMaterialRates, costingPrices, costings, customShapes, drawings, items, materials, sectionSizes,
 } from "@/db/schema";
 import { BUILT_IN_TYPES } from "@/lib/calc/registry";
 import {
@@ -11,6 +11,8 @@ import {
 import type { CustomShapeDef } from "@/lib/calc/custom";
 import type { Material } from "@/lib/calc/types";
 import { libraryFromRows, type SectionLibrary } from "@/lib/calc/sections-lib";
+import { DEFAULT_KINDS, type Template } from "@/lib/calc/bought-catalogue";
+import { UNITS_BY_GROUP } from "@/lib/calc/costing";
 import { nextItemNo } from "@/lib/item-no";
 import * as v from "./validation";
 
@@ -53,8 +55,14 @@ export async function listCustomShapes(db: Db): Promise<CustomShapeDef[]> {
 
 /** Section & pipe tables as edited in Settings. */
 export async function loadSectionLibrary(db: Db): Promise<SectionLibrary> {
-  const rows = await db.select({ series: sectionSizes.series, size: sectionSizes.size, data: sectionSizes.data }).from(sectionSizes);
-  return libraryFromRows(rows);
+  const [rows, kinds] = await Promise.all([
+    db.select({ series: sectionSizes.series, size: sectionSizes.size, data: sectionSizes.data }).from(sectionSizes),
+    db.select().from(boughtKinds).orderBy(asc(boughtKinds.sortOrder), asc(boughtKinds.name)),
+  ]);
+  const catalogue = kinds.length
+    ? kinds.map((k) => ({ name: k.name, template: k.template as Template, unit: k.unit }))
+    : DEFAULT_KINDS;
+  return libraryFromRows(rows, catalogue);
 }
 
 async function assertMaterial(db: Db, code: string | null | undefined) {
@@ -144,19 +152,101 @@ export async function setMaterialRate(db: Db, costingId: string, rate: z.input<t
   await touch(db, costingId);
 }
 
-/** Size-wise rate (pipes, sections…); a blank rate means "use the material rate". */
-export async function setSizeRate(db: Db, costingId: string, input: z.input<typeof v.sizeRate>) {
-  const data = v.sizeRate.parse(input);
+/** A rate on the Pricing page (plate thickness, section size, bought-out, job work). Blank = missing. */
+export async function setPrice(db: Db, costingId: string, input: z.input<typeof v.price>) {
+  const data = v.price.parse(input);
+  if (!UNITS_BY_GROUP[data.group].includes(data.unit)) throw new InvalidInputError(`${data.group} cannot be priced per ${data.unit}`);
   const [c] = await db.select({ id: costings.id }).from(costings).where(eq(costings.id, costingId));
   if (!c) throw new NotFoundError("Costing");
   await db
-    .insert(costingSizeRates)
+    .insert(costingPrices)
     .values({ costingId, ...data })
     .onConflictDoUpdate({
-      target: [costingSizeRates.costingId, costingSizeRates.key],
+      target: [costingPrices.costingId, costingPrices.key],
       set: { rate: data.rate, unit: data.unit, label: data.label },
     });
   await touch(db, costingId);
+}
+
+/**
+ * Fill blank rates from another costing: material and scrap rates, prices with the
+ * same key, charge lines with the same name. Rates already entered are never changed.
+ */
+export async function fillBlankRates(db: Db, costingId: string, sourceId: string): Promise<number> {
+  if (costingId === sourceId) throw new InvalidInputError("Choose a different costing");
+  const [target, source] = await Promise.all([getCostingTree(db, costingId), getCostingTree(db, sourceId)]);
+  if (!target || !source) throw new NotFoundError("Costing");
+  let filled = 0;
+  for (const r of target.rates) {
+    const s = source.rates.find((x) => x.material === r.material);
+    if (!s) continue;
+    const rate = r.rate ?? s.rate;
+    const scrapRate = r.scrapRate ?? s.scrapRate;
+    if (rate !== r.rate || scrapRate !== r.scrapRate) {
+      await db
+        .update(costingMaterialRates)
+        .set({ rate, scrapRate })
+        .where(and(eq(costingMaterialRates.costingId, costingId), eq(costingMaterialRates.material, r.material)));
+      filled += Number(rate !== r.rate) + Number(scrapRate !== r.scrapRate);
+    }
+  }
+  const have = new Map(target.prices.map((p) => [p.key, p]));
+  for (const p of source.prices) {
+    if (p.rate === null) continue;
+    const mine = have.get(p.key);
+    if (mine && mine.rate !== null) continue;
+    await db
+      .insert(costingPrices)
+      .values({ costingId, key: p.key, group: p.group, material: p.material, label: p.label, rate: p.rate, unit: p.unit })
+      .onConflictDoUpdate({ target: [costingPrices.costingId, costingPrices.key], set: { rate: p.rate, unit: p.unit } });
+    filled++;
+  }
+  for (const line of target.chargeLines) {
+    if (line.rate !== null) continue;
+    const s = source.chargeLines.find((x) => x.name.trim().toLowerCase() === line.name.trim().toLowerCase() && x.rate !== null);
+    if (!s) continue;
+    await db.update(chargeLines).set({ rate: s.rate }).where(eq(chargeLines.id, line.id));
+    filled++;
+  }
+  if (filled) await touch(db, costingId);
+  return filled;
+}
+
+/** The most recent rate used in any other costing, per price key / material / charge name (for hints). */
+export async function lastUsedRates(db: Db, costingId: string) {
+  const [prices, mats, lines] = await Promise.all([
+    db
+      .select({ key: costingPrices.key, rate: costingPrices.rate, unit: costingPrices.unit, project: costings.projectName, at: costings.updatedAt })
+      .from(costingPrices)
+      .innerJoin(costings, eq(costings.id, costingPrices.costingId))
+      .where(and(sql`${costingPrices.costingId} <> ${costingId}`, sql`${costingPrices.rate} is not null`))
+      .orderBy(desc(costings.updatedAt)),
+    db
+      .select({ material: costingMaterialRates.material, rate: costingMaterialRates.rate, project: costings.projectName, at: costings.updatedAt })
+      .from(costingMaterialRates)
+      .innerJoin(costings, eq(costings.id, costingMaterialRates.costingId))
+      .where(and(sql`${costingMaterialRates.costingId} <> ${costingId}`, sql`${costingMaterialRates.rate} is not null`))
+      .orderBy(desc(costings.updatedAt)),
+    db
+      .select({ name: chargeLines.name, rate: chargeLines.rate, project: costings.projectName, at: costings.updatedAt })
+      .from(chargeLines)
+      .innerJoin(costings, eq(costings.id, chargeLines.costingId))
+      .where(and(sql`${chargeLines.costingId} <> ${costingId}`, sql`${chargeLines.rate} is not null`))
+      .orderBy(desc(costings.updatedAt)),
+  ]);
+  const first = <T, K>(rows: T[], key: (r: T) => K) => {
+    const m = new Map<K, T>();
+    for (const r of rows) if (!m.has(key(r))) m.set(key(r), r);
+    return m;
+  };
+  type Hint = { rate: number; unit?: string; project: string };
+  const toObj = <T extends { rate: number | null; project: string; unit?: string }>(m: Map<string, T>) =>
+    Object.fromEntries([...m].map(([k, r]) => [k, { rate: r.rate!, unit: r.unit, project: r.project } satisfies Hint]));
+  return {
+    prices: toObj(first(prices, (r) => r.key)),
+    materials: toObj(first(mats, (r) => r.material)),
+    charges: toObj(first(lines, (r) => r.name.trim().toLowerCase())),
+  };
 }
 
 // ---------- charge lines ----------
@@ -307,9 +397,9 @@ export async function deleteItem(db: Db, itemId: string) {
 export async function getCostingTree(db: Db, costingId: string) {
   const [costing] = await db.select().from(costings).where(eq(costings.id, costingId));
   if (!costing) return null;
-  const [rates, sizeRates, lines, dws] = await Promise.all([
+  const [rates, prices, lines, dws] = await Promise.all([
     db.select().from(costingMaterialRates).where(eq(costingMaterialRates.costingId, costingId)),
-    db.select().from(costingSizeRates).where(eq(costingSizeRates.costingId, costingId)),
+    db.select().from(costingPrices).where(eq(costingPrices.costingId, costingId)),
     db.select().from(chargeLines).where(eq(chargeLines.costingId, costingId)).orderBy(asc(chargeLines.sortOrder)),
     db.select().from(drawings).where(eq(drawings.costingId, costingId)).orderBy(asc(drawings.sortOrder), asc(drawings.createdAt)),
   ]);
@@ -323,7 +413,7 @@ export async function getCostingTree(db: Db, costingId: string) {
   return {
     costing,
     rates,
-    sizeRates,
+    prices,
     chargeLines: lines,
     drawings: dws.map((d) => ({
       ...d,
@@ -346,7 +436,7 @@ export function toCostingInput(tree: CostingTree, mats: Material[], shapes: Cust
     customShapes: shapes,
     sections,
     rates: Object.fromEntries(tree.rates.map((r) => [r.material, { rate: r.rate, scrapRate: r.scrapRate }])),
-    sizeRates: Object.fromEntries(tree.sizeRates.map((r) => [r.key, { rate: r.rate, unit: r.unit }])),
+    prices: Object.fromEntries(tree.prices.map((r) => [r.key, { rate: r.rate, unit: r.unit }])),
     chargeLines: tree.chargeLines.map((l) => ({
       id: l.id, name: l.name, rate: l.rate, basis: l.basis, appliesTo: l.appliesTo as AppliesTo,
     })),
@@ -422,9 +512,9 @@ export async function duplicateCosting(
         tree.rates.map((r) => ({ costingId: copy.id, material: r.material, rate: r.rate, scrapRate: r.scrapRate })),
       );
     }
-    if (tree.sizeRates.length) {
-      await tx.insert(costingSizeRates).values(
-        tree.sizeRates.map(({ key, label, rate, unit }) => ({ costingId: copy.id, key, label, rate, unit })),
+    if (tree.prices.length) {
+      await tx.insert(costingPrices).values(
+        tree.prices.map(({ key, group, material, label, rate, unit }) => ({ costingId: copy.id, key, group, material, label, rate, unit })),
       );
     }
     if (tree.chargeLines.length) {

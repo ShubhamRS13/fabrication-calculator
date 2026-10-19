@@ -1,4 +1,5 @@
 import { IS1239_OD, IS1239_WALL, PIPE_OD, PIPE_WALL, STRUCTURAL, SWG } from "./data/sections";
+import { DEFAULT_KINDS, type BoughtKind } from "./bought-catalogue";
 
 // The section and pipe tables the engine reads. In the app it is built from the
 // database (Settings → Section tables, where sizes can be edited and added); the
@@ -18,6 +19,8 @@ export interface SectionLibrary {
   is1239: Record<string, Record<string, PipeSize>>;
   /** Gauge → thickness mm. */
   swg: Record<string, number>;
+  /** Bought-out catalogue kinds (built-in + added in Settings). */
+  boughtKinds: BoughtKind[];
 }
 
 export type SectionKind = "kgPerM" | "pipeSch" | "is1239" | "swg";
@@ -36,8 +39,8 @@ export interface SectionRow {
   data: Record<string, number>;
 }
 
-export function libraryFromRows(rows: SectionRow[]): SectionLibrary {
-  const lib: SectionLibrary = { kgPerM: {}, pipeSch: {}, is1239: {}, swg: {} };
+export function libraryFromRows(rows: SectionRow[], boughtKinds: BoughtKind[] = DEFAULT_KINDS): SectionLibrary {
+  const lib: SectionLibrary = { kgPerM: {}, pipeSch: {}, is1239: {}, swg: {}, boughtKinds };
   for (const r of rows) {
     const { kind, key } = kindOf(r.series);
     if (kind === "kgPerM") {

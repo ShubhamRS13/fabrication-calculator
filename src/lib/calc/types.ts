@@ -35,7 +35,18 @@ export interface FieldDef {
   /** Options that depend on other inputs or the section library, e.g. sizes of the chosen series. */
   dependentOptions?: (inputs: ItemInputs, lib: SectionLibrary) => { value: string; label: string }[];
   /** Show the field only when this returns true (e.g. rolling allowance only for "from flat"). */
-  showIf?: (inputs: ItemInputs) => boolean;
+  showIf?: (inputs: ItemInputs, lib: SectionLibrary) => boolean;
+}
+
+// ---------- Pricing ----------
+
+/** Where a rate lives on the Pricing page. */
+export type PriceGroup = "plate" | "size" | "bought" | "jobwork";
+export type PriceUnit = "kg" | "m" | "piece" | "set";
+
+export interface PriceRef {
+  group: PriceGroup;
+  label: string;
 }
 
 // ---------- Flat-pattern development ----------
@@ -136,10 +147,16 @@ export interface ItemType {
   /** Symbolic formula lines, using the letters on the reference diagram. */
   formulaText?: string[];
   /**
-   * Size name for the size-wise rate chart, e.g. "Pipe 50 NB SCH 40". Items of the
-   * same material and size share one rate. Absent = priced by material ₹/kg only.
+   * What this item is priced as on the costing's Pricing page. Items with the same
+   * group, material and label share one rate. For sections the label is the size
+   * ("Pipe 50 NB SCH 40"); for bought-outs the catalogue name. Sheet items without
+   * one are priced by thickness ("4 mm").
    */
-  sizeLabel?: (inputs: ItemInputs) => string;
+  priceRef?: (inputs: ItemInputs, lib: SectionLibrary) => PriceRef | null;
+  /** Third-party job work (e.g. dish forming), priced on the Pricing page. */
+  jobWorkRef?: (inputs: ItemInputs) => string | null;
+  /** Older types kept so saved items work, but not offered in the picker. */
+  hidden?: boolean;
   fields: FieldDef[];
   compute(inputs: ItemInputs, ctx: CalcContext): ItemResult;
 }

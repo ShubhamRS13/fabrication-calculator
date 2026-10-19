@@ -45,7 +45,7 @@ export const pipeSch: ItemType = {
   label: "Pipe (NB + schedule)",
   description: "Seamless / welded pipe by nominal bore and schedule (5S, 10S, 40, 80).",
   formulaText: TUBE_FORMULA,
-  sizeLabel: (i) => `Pipe ${str(i, "nb")} NB SCH ${str(i, "sch")}`,
+  priceRef: (i) => ({ group: "size", label: `Pipe ${str(i, "nb")} NB SCH ${str(i, "sch")}` }),
   fields: [
     { key: "sch", label: "Schedule", kind: "select", dependentOptions: (_i, lib) => opts(Object.keys(lib.pipeSch), SCH_LABEL) },
     { key: "nb", label: "NB", kind: "select", dependentOptions: (inp, lib) => opts(Object.keys(lib.pipeSch[str(inp, "sch")] ?? {}), (k) => `${k} NB`) },
@@ -71,7 +71,7 @@ export const pipeIs1239: ItemType = {
   label: "Pipe IS 1239 (Light / Medium / Heavy)",
   description: "ERW / GI pipe to IS 1239, class A (light), B (medium) or C (heavy).",
   formulaText: TUBE_FORMULA,
-  sizeLabel: (i) => `Pipe ${str(i, "nb")} NB IS 1239 ${IS1239_CLASS[str(i, "cls")] ?? str(i, "cls")}`,
+  priceRef: (i) => ({ group: "size", label: `Pipe ${str(i, "nb")} NB IS 1239 ${IS1239_CLASS[str(i, "cls")] ?? str(i, "cls")}` }),
   fields: [
     { key: "cls", label: "Class", kind: "select", dependentOptions: (_i, lib) => opts(Object.keys(lib.is1239), (k) => IS1239_CLASS[k] ?? k) },
     { key: "nb", label: "NB", kind: "select", dependentOptions: (inp, lib) => opts(Object.keys(lib.is1239[str(inp, "cls")] ?? {}), (k) => `${k} NB`) },
@@ -95,7 +95,7 @@ export const pipeSwg: ItemType = {
   label: "Pipe / tube (OD + SWG)",
   description: "Tube given by outside diameter and wire gauge, e.g. 101.6 OD 10 SWG.",
   formulaText: TUBE_FORMULA,
-  sizeLabel: (i) => `Tube ${str(i, "od")} OD ${str(i, "swg")} SWG`,
+  priceRef: (i) => ({ group: "size", label: `Tube ${str(i, "od")} OD ${str(i, "swg")} SWG` }),
   fields: [
     { key: "od", label: "OD", kind: "number", unit: "mm" },
     { key: "swg", label: "SWG", kind: "select", dependentOptions: (_i, lib) => opts(Object.keys(lib.swg), (k) => `${k} SWG`) },
@@ -119,7 +119,7 @@ export const pipeCustom: ItemType = {
   label: "Pipe / tube custom",
   description: "Any round tube from its outside diameter and wall thickness.",
   formulaText: TUBE_FORMULA,
-  sizeLabel: (i) => `Tube ${str(i, "od")} OD × ${str(i, "thk")}`,
+  priceRef: (i) => ({ group: "size", label: `Tube ${str(i, "od")} OD × ${str(i, "thk")}` }),
   fields: [{ key: "od", label: "OD", kind: "number", unit: "mm" }, { key: "thk", label: "THK t", kind: "number", unit: "mm" }, LENGTH],
   compute(inp, { density }) {
     const od = pos(inp, "od", "OD");
@@ -140,7 +140,7 @@ export const rectTube: ItemType = {
   label: "Square / rectangular tube",
   description: "Hollow section A × B × t. Enter the supplier's std kg/m to override.",
   formulaText: ["kg/m = 2 × t × (A + B − 2t) × ρ / 1000 (corners ignored)", "Weight = kg/m × L / 1000"],
-  sizeLabel: (i) => `Tube ${str(i, "a")} × ${str(i, "b")} × ${str(i, "thk")}`,
+  priceRef: (i) => ({ group: "size", label: `Tube ${str(i, "a")} × ${str(i, "b")} × ${str(i, "thk")}` }),
   fields: [
     { key: "a", label: "Side A", kind: "number", unit: "mm" },
     { key: "b", label: "Side B", kind: "number", unit: "mm" },
@@ -168,7 +168,7 @@ export const roundBar: ItemType = {
   label: "Round bar",
   description: "Solid round bar of diameter d.",
   formulaText: ["kg/m = π × d² / 4 × ρ / 1000", "Weight = kg/m × L / 1000"],
-  sizeLabel: (i) => `Round bar Ø${str(i, "dia")}`,
+  priceRef: (i) => ({ group: "size", label: `Round bar Ø${str(i, "dia")}` }),
   fields: [{ key: "dia", label: "Diameter d", kind: "number", unit: "mm" }, LENGTH],
   compute(inp, { density }) {
     const d = pos(inp, "dia", "Diameter");
@@ -185,7 +185,7 @@ export const squareBar: ItemType = {
   label: "Square bar",
   description: "Solid square bar of side a.",
   formulaText: ["kg/m = a² × ρ / 1000", "Weight = kg/m × L / 1000"],
-  sizeLabel: (i) => `Square bar ${str(i, "side")}`,
+  priceRef: (i) => ({ group: "size", label: `Square bar ${str(i, "side")}` }),
   fields: [{ key: "side", label: "Side a", kind: "number", unit: "mm" }, LENGTH],
   compute(inp, { density }) {
     const a = pos(inp, "side", "Side");
@@ -202,7 +202,7 @@ export const hexBar: ItemType = {
   label: "Hex bar",
   description: "Solid hexagon bar, sized across flats (A/F).",
   formulaText: ["Area = √3 / 2 × s²  (s = across flats)", "kg/m = Area × ρ / 1000"],
-  sizeLabel: (i) => `Hex bar ${str(i, "af")} A/F`,
+  priceRef: (i) => ({ group: "size", label: `Hex bar ${str(i, "af")} A/F` }),
   fields: [{ key: "af", label: "Across flats s", kind: "number", unit: "mm" }, LENGTH],
   compute(inp, { density }) {
     const s = pos(inp, "af", "Across flats");
@@ -229,7 +229,7 @@ function rolledSection(id: string, label: string, description: string, group?: G
     label,
     description,
     formulaText: ["kg/m from the IS 808 table (MS)", "kg/m for other materials = table × ρ / 7.85", "Weight = kg/m × L / 1000"],
-    sizeLabel: (i) => `${str(i, "series")} ${str(i, "size")}`,
+    priceRef: (i) => ({ group: "size", label: `${str(i, "series")} ${str(i, "size")}` }),
     fields: [
       {
         key: "series",
@@ -281,7 +281,7 @@ export const sectionCustom: ItemType = {
   label: "I / H / C section – custom size",
   description: "A section not in the tables, from its depth, flange width and thicknesses (root radii ignored).",
   formulaText: ["Area = 2 × B × tf + (D − 2 tf) × tw", "kg/m = Area × ρ / 1000", "Weight = kg/m × L / 1000"],
-  sizeLabel: (i) => `${str(i, "shape", "I")} section ${str(i, "depth")} × ${str(i, "flange")} (tw ${str(i, "web")}, tf ${str(i, "flangeThk")})`,
+  priceRef: (i) => ({ group: "size", label: `${str(i, "shape", "I")} section ${str(i, "depth")} × ${str(i, "flange")} (tw ${str(i, "web")}, tf ${str(i, "flangeThk")})` }),
   fields: [
     { key: "shape", label: "Shape", kind: "select", options: SHAPES, default: "I" },
     { key: "depth", label: "Depth D", kind: "number", unit: "mm" },
@@ -312,7 +312,7 @@ export const angleTrue: ItemType = {
   label: "Angle – custom size (true area)",
   description: "Equal or unequal angle A × B × t not in the table (root radius ignored).",
   formulaText: ["Area = (A + B − t) × t", "kg/m = Area × ρ / 1000"],
-  sizeLabel: (i) => `Angle ${str(i, "a")} × ${str(i, "b")} × ${str(i, "thk")}`,
+  priceRef: (i) => ({ group: "size", label: `Angle ${str(i, "a")} × ${str(i, "b")} × ${str(i, "thk")}` }),
   fields: [
     { key: "a", label: "Leg A", kind: "number", unit: "mm" },
     { key: "b", label: "Leg B", kind: "number", unit: "mm" },
@@ -339,7 +339,7 @@ export const angleCustom: ItemType = {
   label: "Angle – workbook formula (2 × W × t)",
   description: "The old workbook's ANGLE() formula; slightly heavier than the true area. Kept for matching old costings.",
   formulaText: ["kg/m = 2 × W × t × ρ / 1000"],
-  sizeLabel: (i) => `Angle ${str(i, "width")} × ${str(i, "width")} × ${str(i, "thk")}`,
+  priceRef: (i) => ({ group: "size", label: `Angle ${str(i, "width")} × ${str(i, "width")} × ${str(i, "thk")}` }),
   fields: [{ key: "width", label: "Leg width W", kind: "number", unit: "mm" }, { key: "thk", label: "THK t", kind: "number", unit: "mm" }, LENGTH],
   compute(inp, { density }) {
     const w = pos(inp, "width", "Leg width");

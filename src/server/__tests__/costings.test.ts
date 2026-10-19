@@ -7,6 +7,7 @@ import * as schema from "@/db/schema";
 import { seed } from "@/db/seed";
 import * as dal from "../costings";
 import * as lib from "../library";
+import { migrateLegacyPricing } from "../migrate-pricing";
 
 let db: Db;
 
@@ -154,19 +155,71 @@ describe("data layer", () => {
     expect((await dal.loadSectionLibrary(db)).kgPerM.ISMC["100"]).toBe(9.56);
   });
 
-  it("size rates price pipes per metre and are copied by duplicate", async () => {
+  it("prices: pipes per metre, copied by duplicate, back to blank = material rate", async () => {
     const id = await dal.createCosting(db, { clientName: "Pipes", projectName: "Size rates", defaultMaterial: "SS304" });
     const d = await dal.addDrawing(db, id, { drawingNo: "SR-1" });
     await dal.addItem(db, d, { type: "pipe-sch", name: "PIPE", qty: 2, inputs: { sch: "40", nb: "50", length: 1500 } });
-    await dal.setSizeRate(db, id, { key: "SS304|Pipe 50 NB SCH 40", label: "Pipe 50 NB SCH 40", rate: 1200, unit: "m" });
+    const price = { key: "size|SS304|Pipe 50 NB SCH 40", group: "size" as const, material: "SS304", label: "Pipe 50 NB SCH 40" };
+    await dal.setPrice(db, id, { ...price, rate: 1200, unit: "m" });
     const out = (await dal.computeCostingById(db, id))!;
     expect(out.result.drawings[0].items[0].materialAmount).toBeCloseTo(3 * 1200, 9);
     const copy = (await dal.computeCostingById(db, await dal.duplicateCosting(db, id)))!;
-    expect(copy.tree.sizeRates).toHaveLength(1);
+    expect(copy.tree.prices).toHaveLength(1);
     expect(copy.result.drawings[0].items[0].materialAmount).toBeCloseTo(3600, 9);
-    // Back to blank: material rate applies again (none set → 0).
-    await dal.setSizeRate(db, id, { key: "SS304|Pipe 50 NB SCH 40", label: "Pipe 50 NB SCH 40", rate: null, unit: "m" });
+    await dal.setPrice(db, id, { ...price, rate: null, unit: "m" });
     expect((await dal.computeCostingById(db, id))!.result.drawings[0].items[0].pricedBy).toBe("material");
+    await expect(dal.setPrice(db, id, { key: "plate|SS304|3 mm", group: "plate", material: "SS304", label: "3 mm", rate: 5, unit: "m" })).rejects.toThrow(
+      /cannot be priced per m/,
+    );
+  });
+
+  it("fill blank rates from another costing never overwrites entered rates", async () => {
+    const make = async (name: string) => {
+      const id = await dal.createCosting(db, { clientName: "Fill", projectName: name, defaultMaterial: "SS304" });
+      const d = await dal.addDrawing(db, id, { drawingNo: "F-1" });
+      await dal.addItem(db, d, { type: "bought", name: "STUB", qty: 2, inputs: { kind: "Stub end", nb: "50", stub: "Long", rating: "SCH 10S" } });
+      return id;
+    };
+    const src = await make("Source");
+    const dst = await make("Target");
+    const stub = { key: "bought|SS304|Stub end 50 NB Long SCH 10S", group: "bought" as const, material: "SS304", label: "Stub end 50 NB Long SCH 10S" };
+    await dal.setPrice(db, src, { ...stub, rate: 450, unit: "piece" });
+    await dal.setMaterialRate(db, src, { material: "SS304", rate: 220, scrapRate: 110 });
+    await dal.setMaterialRate(db, dst, { material: "SS304", rate: 230, scrapRate: null });
+    const srcTree = (await dal.getCostingTree(db, src))!;
+    await dal.updateChargeLine(db, srcTree.chargeLines.find((l) => l.name === "Labour – SS")!.id, { rate: 85 });
+
+    const filled = await dal.fillBlankRates(db, dst, src);
+    expect(filled).toBe(3); // scrap rate, stub end, labour
+    const t = (await dal.getCostingTree(db, dst))!;
+    expect(t.rates.find((r) => r.material === "SS304")).toMatchObject({ rate: 230, scrapRate: 110 });
+    expect(t.prices.find((p) => p.key === stub.key)?.rate).toBe(450);
+    expect(t.chargeLines.find((l) => l.name === "Labour – SS")?.rate).toBe(85);
+    const hints = await dal.lastUsedRates(db, dst);
+    expect(hints.prices[stub.key].rate).toBe(450);
+  });
+
+  it("older bought items and dish job work move to the Pricing page with the same total", async () => {
+    const id = await dal.createCosting(db, { clientName: "Legacy", projectName: "Old style", defaultMaterial: "SS304" });
+    const d = await dal.addDrawing(db, id, { drawingNo: "L-1" });
+    // Written directly in the old form (the form no longer offers these).
+    await db.insert(schema.items).values([
+      { drawingId: d, itemNo: "1", type: "bought-misc", name: "HOSE CLAMP", qty: 6, inputs: { rate: 45 } },
+      { drawingId: d, itemNo: "2", type: "dish-hemi", name: "DISH", qty: 2, inputs: { dia: 600, diaRef: "OD", thk: 4, jobWork: 1500 } },
+    ]);
+    const before = (await dal.computeCostingById(db, id))!.result.grandTotal;
+    expect(before).toBeCloseTo(6 * 45 + 2 * 1500, 9);
+    const moved = await migrateLegacyPricing(db);
+    expect(moved.bought).toBeGreaterThanOrEqual(1);
+    expect(moved.jobWork).toBeGreaterThanOrEqual(1);
+    const after = (await dal.computeCostingById(db, id))!;
+    expect(after.result.grandTotal).toBeCloseTo(before, 9);
+    expect(after.tree.drawings[0].items.find((i) => i.name === "HOSE CLAMP")!.type).toBe("bought");
+    // The dish's 4 mm material is a plate row; the moved rates are the bought and job-work rows.
+    expect(after.result.prices.map((p) => p.group).sort()).toEqual(["bought", "jobwork", "plate"]);
+    expect(after.result.missing.filter((m) => m.kind === "price")).toHaveLength(0);
+    // Running again changes nothing.
+    expect(await migrateLegacyPricing(db)).toEqual({ bought: 0, jobWork: 0 });
   });
 
   it("deleting a costing cascades", async () => {

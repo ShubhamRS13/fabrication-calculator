@@ -1,8 +1,9 @@
-import type { ItemInputs, ItemResult, ItemType, Material } from "./types";
+import type { ItemInputs, ItemResult, ItemType, Material, PriceGroup, PriceRef, PriceUnit } from "./types";
 import { familyOf, findMaterial } from "./materials";
 import { buildRegistry } from "./registry";
 import type { CustomShapeDef } from "./custom";
-import type { SectionLibrary } from "./sections-lib";
+import { BUILT_IN_LIBRARY, type SectionLibrary } from "./sections-lib";
+import { findKind } from "./bought-catalogue";
 
 // ---------- Inputs ----------
 
@@ -23,16 +24,22 @@ export interface MaterialRate {
   scrapRate: number | null;
 }
 
-export type SizeRateUnit = "kg" | "m" | "piece";
-
-/** A size-wise rate, e.g. ₹/m for "SS304|Pipe 50 NB SCH 40". Blank rate = use the material rate. */
-export interface SizeRate {
+/** A rate on the Pricing page. Blank (null) = missing; 0 = deliberately free. */
+export interface Price {
   rate: number | null;
-  unit: SizeRateUnit;
+  unit: PriceUnit;
 }
 
-/** Size key: material + size label, so the same size in two materials gets two rates. */
-export const sizeKey = (material: string, label: string) => `${material}|${label}`;
+/** Price key: group + material + label, e.g. "size|SS304|Pipe 50 NB SCH 40". */
+export const priceKey = (group: PriceGroup, material: string, label: string) => `${group}|${material}|${label}`;
+
+/** Units each group can be priced in; the first is the default. */
+export const UNITS_BY_GROUP: Record<PriceGroup, PriceUnit[]> = {
+  plate: ["kg"],
+  size: ["kg", "m", "piece"],
+  bought: ["piece", "set", "kg", "m"],
+  jobwork: ["piece"],
+};
 
 export interface ItemInput {
   id: string;
@@ -78,8 +85,8 @@ export interface CostingInput {
   customShapes?: CustomShapeDef[];
   /** Section & pipe tables (from Settings); built-in tables when absent. */
   sections?: SectionLibrary;
-  /** Size-wise rates for this costing, by size key. */
-  sizeRates?: Record<string, SizeRate>;
+  /** Rates from the Pricing page, by price key. */
+  prices?: Record<string, Price>;
 }
 
 // ---------- Outputs ----------
@@ -102,12 +109,15 @@ export interface ItemOutput {
   scrapCredit: number;
   /** bought price / job work × multiplier */
   fixedAmount: number;
-  /** Size-wise rate key and label (sections), when the type has one. */
-  sizeKey?: string;
-  sizeLabel?: string;
-  /** How the material amount was priced. */
-  pricedBy?: "material" | SizeRateUnit;
-  /** Total cut length, m (sections). */
+  /** What the item is priced as on the Pricing page. */
+  price?: { key: string; group: PriceGroup; label: string };
+  /** Third-party job work (e.g. dish forming). */
+  job?: { key: string; label: string };
+  /** How the amount was worked out. */
+  pricedBy?: "material" | PriceUnit | "item rate";
+  /** A rate this item needs is blank. */
+  missing?: boolean;
+  /** Total cut length, m (sections, or bought ₹/m items). */
   lengthM?: number;
 }
 
@@ -148,7 +158,34 @@ export interface CostingOutput {
   subtotal: number;
   profit: number;
   grandTotal: number;
+  /** Every rate the costing needs, for the Pricing page. */
+  prices: PriceRow[];
+  /** Rates still blank (material, price rows, charge lines). */
+  missing: MissingRate[];
 }
+
+export interface PriceRow {
+  key: string;
+  group: PriceGroup;
+  label: string;
+  material: string;
+  /** Process kg, metres and pieces across every drawing and assembly. */
+  kg: number;
+  m: number;
+  pieces: number;
+  amount: number;
+  drawings: string[];
+  rate: number | null;
+  unit: PriceUnit;
+  /** Blank rate and nothing to fall back on. */
+  missing: boolean;
+}
+
+export interface MissingRate {
+  kind: "material" | "price" | "charge";
+  label: string;
+}
+
 
 // ---------- Engine ----------
 
@@ -182,7 +219,7 @@ export function computeItem(
     multiplier: number;
     rate: MaterialRate | undefined;
     sections?: SectionLibrary;
-    sizeRates?: Record<string, SizeRate>;
+    prices?: Record<string, Price>;
   },
 ): ItemOutput {
   const out: ItemOutput = {
@@ -192,9 +229,10 @@ export function computeItem(
   const mat = findMaterial(ctx.materials, ctx.material);
   if (!ctx.type) return { ...out, error: `Unknown item type "${item.type}"` };
   if (!mat && ctx.type.category !== "bought") return { ...out, error: `Unknown material "${ctx.material}"` };
+  const lib = ctx.sections ?? BUILT_IN_LIBRARY;
   let unit: ItemResult;
   try {
-    unit = ctx.type.compute(item.inputs, { density: mat?.density ?? 0, lib: ctx.sections });
+    unit = ctx.type.compute(item.inputs, { density: mat?.density ?? 0, lib });
   } catch (err) {
     return { ...out, error: (err as Error).message };
   }
@@ -203,26 +241,57 @@ export function computeItem(
   out.finishWt = unit.finishWt * n;
   out.processWt = unit.processWt * n;
   out.scrap = unit.scrap * n;
-  out.fixedAmount = unit.fixedCost * n;
   if (unit.cutLength !== undefined) out.lengthM = (unit.cutLength * n) / 1000;
-  if (ctx.type.sizeLabel) {
-    out.sizeLabel = ctx.type.sizeLabel(item.inputs);
-    out.sizeKey = sizeKey(ctx.material, out.sizeLabel);
+
+  // What this item is priced as. Sheet items without their own are priced by thickness.
+  let ref: PriceRef | null = ctx.type.priceRef?.(item.inputs, lib) ?? null;
+  if (!ref && ctx.type.category === "fabricated" && unit.costedByWeight && Number(item.inputs.thk) > 0) {
+    ref = { group: "plate", label: `${Number(item.inputs.thk)} mm` };
   }
+  if (ref) out.price = { key: priceKey(ref.group, ctx.material, ref.label), group: ref.group, label: ref.label };
+  const p = out.price ? ctx.prices?.[out.price.key] : undefined;
+  const has = (x: Price | undefined): x is Price & { rate: number } => !!x && x.rate !== null;
+
   if (unit.costedByWeight) {
     out.burning = (out.processWt * ctx.burningPct) / 100;
     out.scrapCredit = out.scrap * (ctx.rate?.scrapRate ?? 0);
-    const sr = out.sizeKey ? ctx.sizeRates?.[out.sizeKey] : undefined;
-    if (sr && sr.rate !== null) {
-      // Size-wise rate: ₹/kg works like the material rate (burning included);
-      // ₹/m and ₹/piece price the cut lengths / pieces directly.
-      out.pricedBy = sr.unit;
+    if (has(p)) {
+      // ₹/kg works like the material rate (burning included); ₹/m and ₹/piece price
+      // the cut lengths / pieces directly.
+      out.pricedBy = p.unit;
       out.materialAmount =
-        sr.unit === "kg" ? (out.processWt + out.burning) * sr.rate : sr.unit === "m" ? (out.lengthM ?? 0) * sr.rate : n * sr.rate;
+        p.unit === "kg" ? (out.processWt + out.burning) * p.rate : p.unit === "m" ? (out.lengthM ?? 0) * p.rate : n * p.rate;
     } else {
       out.pricedBy = "material";
       out.materialAmount = (out.processWt + out.burning) * (ctx.rate?.rate ?? 0);
+      if (ctx.rate?.rate === null || ctx.rate?.rate === undefined) out.missing = true;
     }
+  } else if (out.price?.group === "bought") {
+    // Bought-out: quantity × rate in its unit. Weight never counts in material or labour.
+    const perKg = Number(item.inputs.weight) || 0;
+    const perM = (Number(item.inputs.pieceLength) || 0) / 1000;
+    if (perM) out.lengthM = perM * n;
+    if (has(p)) {
+      out.pricedBy = p.unit;
+      out.fixedAmount = p.unit === "kg" ? n * perKg * p.rate : p.unit === "m" ? n * perM * p.rate : n * p.rate;
+      if ((p.unit === "kg" && !perKg) || (p.unit === "m" && !perM)) out.missing = true;
+    } else {
+      out.missing = true;
+    }
+  } else {
+    // Older bought items carry their own rate.
+    out.fixedAmount = unit.fixedCost * n;
+    out.pricedBy = "item rate";
+  }
+
+  // Third-party job work (dish forming): Pricing page first, older per-item charge as fallback.
+  const jobLabel = ctx.type.jobWorkRef?.(item.inputs);
+  if (jobLabel) {
+    out.job = { key: priceKey("jobwork", ctx.material, jobLabel), label: jobLabel };
+    const j = ctx.prices?.[out.job.key];
+    if (has(j)) out.fixedAmount += n * j.rate;
+    else if (unit.fixedCost > 0) out.fixedAmount += unit.fixedCost * n;
+    else out.missing = true;
   }
   return out;
 }
@@ -241,7 +310,7 @@ export function computeDrawing(d: DrawingInput, c: CostingInput, registry: Map<s
       multiplier: item.qty * (asm?.qty ?? 1),
       rate: c.rates[material],
       sections: c.sections,
-      sizeRates: c.sizeRates,
+      prices: c.prices,
     });
   });
 
@@ -295,8 +364,100 @@ export function computeCosting(c: CostingInput): CostingOutput {
   }
   const subtotal = drawings.reduce((a, d) => a + d.total, 0);
   const profit = (subtotal * c.profitPct) / 100;
-  return { drawings, byMaterial: [...all.values()], subtotal, profit, grandTotal: subtotal + profit };
+  const prices = priceRows(drawings, c);
+  return {
+    drawings,
+    byMaterial: [...all.values()],
+    subtotal,
+    profit,
+    grandTotal: subtotal + profit,
+    prices,
+    missing: missingRates(drawings, prices, c),
+  };
 }
+
+function jobAmount(it: ItemOutput, c: CostingInput): number {
+  if (!it.job) return 0;
+  const j = c.prices?.[it.job.key];
+  if (j && j.rate !== null) return it.multiplier * j.rate;
+  return (it.unit?.fixedCost ?? 0) * it.multiplier;
+}
+
+function defaultUnit(group: PriceGroup, it: ItemOutput, c: CostingInput): PriceUnit {
+  if (group === "bought") {
+    const kind = findKind((c.sections ?? BUILT_IN_LIBRARY).boughtKinds, String(it.item.inputs.kind ?? ""));
+    if (kind) return kind.unit;
+  }
+  return UNITS_BY_GROUP[group][0];
+}
+
+/** Every distinct price key in the costing, with quantities and the amount it currently gives. */
+function priceRows(drawings: DrawingOutput[], c: CostingInput): PriceRow[] {
+  const rows = new Map<string, PriceRow>();
+  const add = (key: string, group: PriceGroup, label: string, it: ItemOutput, drawingNo: string, amount: number, kg: number) => {
+    const stored = c.prices?.[key];
+    const r: PriceRow = rows.get(key) ?? {
+      key,
+      group,
+      label,
+      material: it.material,
+      kg: 0,
+      m: 0,
+      pieces: 0,
+      amount: 0,
+      drawings: [],
+      rate: stored?.rate ?? null,
+      unit: stored?.unit ?? defaultUnit(group, it, c),
+      missing: false,
+    };
+    r.kg += kg;
+    r.m += group === "jobwork" ? 0 : (it.lengthM ?? 0);
+    r.pieces += it.multiplier;
+    r.amount += amount;
+    if (!r.drawings.includes(drawingNo)) r.drawings.push(drawingNo);
+    rows.set(key, r);
+  };
+  for (const d of drawings) {
+    for (const it of d.items) {
+      if (!it.unit || it.error) continue;
+      if (it.price) {
+        const amount = it.price.group === "bought" ? it.fixedAmount - jobAmount(it, c) : it.materialAmount;
+        add(it.price.key, it.price.group, it.price.label, it, d.drawing.drawingNo, amount, it.unit.costedByWeight ? it.processWt : 0);
+      }
+      if (it.job) add(it.job.key, "jobwork", it.job.label, it, d.drawing.drawingNo, jobAmount(it, c), 0);
+    }
+  }
+  for (const r of rows.values()) {
+    // Plate and size rows fall back to the material rate; bought-outs and job work have nothing to fall back on.
+    const fallback = r.group === "plate" || r.group === "size" ? (c.rates[r.material]?.rate ?? null) : null;
+    r.missing = r.rate === null && fallback === null;
+  }
+  const order: PriceGroup[] = ["plate", "size", "bought", "jobwork"];
+  return [...rows.values()].sort(
+    (a, b) =>
+      order.indexOf(a.group) - order.indexOf(b.group) ||
+      a.material.localeCompare(b.material) ||
+      a.label.localeCompare(b.label, undefined, { numeric: true }),
+  );
+}
+
+function missingRates(drawings: DrawingOutput[], prices: PriceRow[], c: CostingInput): MissingRate[] {
+  const out: MissingRate[] = [];
+  // Materials actually priced by their ₹/kg rate.
+  const used = new Set<string>();
+  for (const d of drawings) for (const it of d.items) if (it.pricedBy === "material") used.add(it.material);
+  for (const m of used) {
+    if (c.rates[m]?.rate === null || c.rates[m]?.rate === undefined) out.push({ kind: "material", label: `${m} rate (₹/kg)` });
+  }
+  for (const p of prices) if (p.missing && (p.group === "bought" || p.group === "jobwork")) out.push({ kind: "price", label: `${p.material} · ${p.label}` });
+  // Charge lines that apply to some weight but have no rate. Enter 0 (or remove the line) if not charged.
+  for (const line of c.chargeLines) {
+    const weight = drawings.reduce((a, d) => a + (d.charges.find((x) => x.line.id === line.id)?.weight ?? 0), 0);
+    if (line.rate === null && weight > 0) out.push({ kind: "charge", label: line.name });
+  }
+  return out;
+}
+
 
 /** Starting charge lines for a new costing (rates blank, typed in per costing). */
 export function defaultChargeLines(): ChargeLine[] {
@@ -307,35 +468,4 @@ export function defaultChargeLines(): ChargeLine[] {
     { id: "polishing", name: "Polishing", rate: null, basis: "finish", appliesTo: "SS" },
     { id: "packaging", name: "Packaging", rate: null, basis: "finish", appliesTo: "ALL" },
   ];
-}
-
-export interface SizeRateRow {
-  key: string;
-  label: string;
-  material: string;
-  /** process kg incl. all quantities */
-  kg: number;
-  m: number;
-  pieces: number;
-  /** what these items cost now (size rate or material rate) */
-  amount: number;
-  drawings: string[];
-}
-
-/** Every distinct size in the costing, for the rate chart. */
-export function sizeRateRows(out: CostingOutput): SizeRateRow[] {
-  const rows = new Map<string, SizeRateRow>();
-  for (const d of out.drawings) {
-    for (const it of d.items) {
-      if (!it.sizeKey || !it.unit || it.error) continue;
-      const r = rows.get(it.sizeKey) ?? { key: it.sizeKey, label: it.sizeLabel!, material: it.material, kg: 0, m: 0, pieces: 0, amount: 0, drawings: [] };
-      r.kg += it.processWt;
-      r.m += it.lengthM ?? 0;
-      r.pieces += it.multiplier;
-      r.amount += it.materialAmount;
-      if (!r.drawings.includes(d.drawing.drawingNo)) r.drawings.push(d.drawing.drawingNo);
-      rows.set(it.sizeKey, r);
-    }
-  }
-  return [...rows.values()].sort((a, b) => a.material.localeCompare(b.material) || a.label.localeCompare(b.label, undefined, { numeric: true }));
 }

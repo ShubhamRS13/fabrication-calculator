@@ -29,6 +29,20 @@
       "when": 1792328857025,
       "tag": "0003_size_rates",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792392826741,
+      "tag": "0004_pricing_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792392840701,
+      "tag": "0005_move_size_rates",
+      "breakpoints": true
     }
   ]
 }

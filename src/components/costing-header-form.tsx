@@ -15,7 +15,6 @@ export interface HeaderValues {
   costingDate: string;
   defaultMaterial: string;
   burningPct: number;
-  profitPct: number;
 }
 
 export function CostingHeaderForm({
@@ -35,9 +34,7 @@ export function CostingHeaderForm({
   function submit(fd: FormData) {
     const s = (k: string) => String(fd.get(k) ?? "").trim();
     const burning = parseNum(s("burningPct"));
-    const profit = parseNum(s("profitPct"));
     if (burning === null || Number.isNaN(burning)) return setError("Burning % must be a number");
-    if (profit === null || Number.isNaN(profit)) return setError("Profit % must be a number");
     const data = {
       clientName: s("clientName"),
       projectName: s("projectName"),
@@ -47,7 +44,6 @@ export function CostingHeaderForm({
       costingDate: s("costingDate") || undefined,
       defaultMaterial: s("defaultMaterial"),
       burningPct: burning,
-      profitPct: profit,
     };
     setError(undefined);
     setSaved(false);
@@ -98,16 +94,10 @@ export function CostingHeaderForm({
           ))}
         </Select>
       </label>
-      <div className="grid grid-cols-2 gap-4">
-        <label className="block">
-          <Label>Burning %</Label>
-          <Input name="burningPct" inputMode="decimal" defaultValue={String(initial.burningPct)} />
-        </label>
-        <label className="block">
-          <Label>Profit %</Label>
-          <Input name="profitPct" inputMode="decimal" defaultValue={String(initial.profitPct)} />
-        </label>
-      </div>
+      <label className="block">
+        <Label hint="Allowance for cutting loss">Burning %</Label>
+        <Input name="burningPct" inputMode="decimal" defaultValue={String(initial.burningPct)} />
+      </label>
       <div className="flex items-center gap-3 sm:col-span-2">
         <Button type="submit" variant="primary" disabled={pending}>
           {pending ? "Saving…" : costingId ? "Save details" : "Create costing"}

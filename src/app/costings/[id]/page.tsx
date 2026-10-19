@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { AddDrawingForm } from "@/components/add-drawing-form";
+import { MissingRatesBanner } from "@/components/missing-rates";
 import { CostingRowActions } from "@/components/costing-row-actions";
 import { MaterialTable } from "@/components/totals";
 import { ButtonLink, Card, CardHeader, Empty, PageTitle, Skeleton, Stat } from "@/components/ui";
@@ -18,7 +19,6 @@ export default function CostingPage(props: PageProps<"/costings/[id]">) {
 async function Overview({ params }: { params: Promise<{ id: string }> }) {
   const { tree, result } = await loadCosting(params);
   const c = tree.costing;
-  const ratesMissing = tree.rates.every((r) => r.rate === null);
   const base = `/costings/${c.id}`;
 
   return (
@@ -29,19 +29,14 @@ async function Overview({ params }: { params: Promise<{ id: string }> }) {
         sub={`${c.clientName}${c.poNo ? ` · PO ${c.poNo}` : ""} · ${formatDate(c.costingDate)} · default ${c.defaultMaterial}, burning ${c.burningPct}%`}
         action={
           <>
-            <ButtonLink href={`${base}/setup`}>Rates & setup</ButtonLink>
-            <ButtonLink href={`${base}/rates`}>Size rate chart</ButtonLink>
+            <ButtonLink href={`${base}/setup`}>Details</ButtonLink>
+            <ButtonLink href={`${base}/pricing`}>Pricing{result.missing.length > 0 && <span className="ml-1 rounded-full bg-danger px-1.5 text-xs text-white">{result.missing.length}</span>}</ButtonLink>
             <ButtonLink href={`${base}/summary`} variant="primary">Summary</ButtonLink>
           </>
         }
       />
 
-      {ratesMissing && (
-        <p className="mb-4 rounded-lg border border-accent/30 bg-accent/5 px-4 py-3 text-sm text-accent">
-          No material rates yet — weights are shown, but ₹ amounts will be 0 until you enter rates in{" "}
-          <Link href={`${base}/setup`} className="font-medium underline">Rates & setup</Link>.
-        </p>
-      )}
+      <MissingRatesBanner missing={result.missing} href={`${base}/pricing`} />
 
       <div className="grid gap-4 lg:grid-cols-[1fr_20rem] [&>*]:min-w-0">
         <Card>

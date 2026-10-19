@@ -32,6 +32,10 @@ export const getSectionSizes = cache(async () => lib.listSectionSizes(await read
 
 export const getSectionLibrary = cache(async () => dal.loadSectionLibrary(await ready()));
 
+export const getLastUsedRates = cache(async (costingId: string) => dal.lastUsedRates(await ready(), costingId));
+
+export const getBoughtKinds = cache(async () => lib.listBoughtKinds(await ready()));
+
 function isUuid(s: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 }

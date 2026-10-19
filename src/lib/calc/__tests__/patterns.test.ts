@@ -9,6 +9,7 @@ import {
 import { closedForm, dishEllip, dishHemi, dishTori } from "../items/dish-ends";
 import { ringFlange } from "../items/sheet";
 import { CalcError } from "../types";
+import { BUILT_IN_LIBRARY } from "../sections-lib";
 
 const SS = { density: 8 };
 const kgOf = (areaMm2: number, t: number) => (areaMm2 * t * 8) / 1e6;
@@ -259,7 +260,7 @@ describe("ring flange made from flat", () => {
 
   it("the allowance field only shows for 'from flat'", () => {
     const f = ringFlange.fields.find((x) => x.key === "allowance")!;
-    expect(f.showIf!({ madeFrom: "flat" })).toBe(true);
-    expect(f.showIf!({ madeFrom: "sheet" })).toBe(false);
+    expect(f.showIf!({ madeFrom: "flat" }, BUILT_IN_LIBRARY)).toBe(true);
+    expect(f.showIf!({ madeFrom: "sheet" }, BUILT_IN_LIBRARY)).toBe(false);
   });
 });
