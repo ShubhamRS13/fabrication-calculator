@@ -54,8 +54,8 @@ function RateRow({ costingId, row, fallback }: { costingId: string; row: RateCha
 
   const usingFallback = row.rate === null;
   return (
-    <li className="grid gap-2 px-4 py-3 sm:grid-cols-[1fr_9rem_8rem_7rem] sm:items-center">
-      <div className="min-w-0">
+    <li className="grid grid-cols-2 items-center gap-2 px-4 py-3 sm:grid-cols-[1fr_9rem_8rem_7rem]">
+      <div className="col-span-2 min-w-0 sm:col-span-1">
         <p className="font-medium">
           <span className="mr-1.5 rounded bg-paper px-1.5 py-0.5 text-xs font-semibold">{row.material}</span>
           {row.label}
@@ -85,11 +85,11 @@ function RateRow({ costingId, row, fallback }: { costingId: string; row: RateCha
           <option key={u.value} value={u.value}>{u.label}</option>
         ))}
       </Select>
-      <div className="text-right text-sm tabular-nums">
-        <p className="font-medium">{inr(row.amount)}</p>
-        <p className="text-xs text-muted">{pending ? "saving…" : usingFallback ? "material rate" : "size rate"}</p>
+      <div className="col-span-2 flex items-baseline justify-between text-sm tabular-nums sm:col-span-1 sm:block sm:text-right">
+        <p className="order-2 font-medium sm:order-none">{inr(row.amount)}</p>
+        <p className="order-1 text-xs text-muted sm:order-none">{pending ? "saving…" : usingFallback ? "material rate" : "size rate"}</p>
       </div>
-      {error && <div className="sm:col-span-4"><ErrorText>{error}</ErrorText></div>}
+      {error && <div className="col-span-2 sm:col-span-4"><ErrorText>{error}</ErrorText></div>}
     </li>
   );
 }

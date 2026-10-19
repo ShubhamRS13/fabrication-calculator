@@ -73,7 +73,7 @@ async function Drawing({ params }: { params: Promise<{ id: string; drawingId: st
         action={<ButtonLink href={`${base}/items/new`} variant="primary">+ Add item</ButtonLink>}
       />
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
+      <div className="grid gap-4 lg:grid-cols-[1fr_22rem] [&>*]:min-w-0">
         <div className="space-y-4">
           <Card>
             <CardHeader title="Items" sub={`${out.items.length} item${out.items.length === 1 ? "" : "s"}`} />

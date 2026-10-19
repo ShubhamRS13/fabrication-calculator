@@ -48,7 +48,7 @@ async function Setup({ params }: { params: Promise<{ id: string }> }) {
             }}
           />
         </Card>
-        <div className="grid gap-4 lg:grid-cols-[22rem_1fr]">
+        <div className="grid gap-4 lg:grid-cols-[22rem_1fr] [&>*]:min-w-0">
           <Card>
             <CardHeader
               title="Material rates"

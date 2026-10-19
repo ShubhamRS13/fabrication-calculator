@@ -26,7 +26,7 @@ export function CostingRowActions({ id, name, redirectAfterDelete }: { id: strin
   };
 
   return (
-    <div className="flex shrink-0 gap-1.5">
+    <div className="flex shrink-0 gap-1.5 self-end sm:self-auto">
       <Button onClick={duplicate} disabled={pending} title="Duplicate for a similar job" className="h-9 px-3">
         Duplicate
       </Button>

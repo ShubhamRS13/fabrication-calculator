@@ -273,7 +273,7 @@ function ItemEditorForm({
   const r = live?.result;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_24rem]">
+    <div className="grid gap-4 lg:grid-cols-[1fr_24rem] [&>*]:min-w-0">
       <div className="space-y-4">
         <Card>
           <CardHeader

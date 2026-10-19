@@ -43,7 +43,7 @@ async function Overview({ params }: { params: Promise<{ id: string }> }) {
         </p>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
+      <div className="grid gap-4 lg:grid-cols-[1fr_20rem] [&>*]:min-w-0">
         <Card>
           <CardHeader title="Drawings" sub="Each drawing holds its items and assemblies." />
           {tree.drawings.length === 0 ? (

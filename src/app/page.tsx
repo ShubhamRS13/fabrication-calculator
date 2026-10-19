@@ -36,8 +36,8 @@ async function CostingList({ searchParams }: { searchParams: PageProps<"/">["sea
         ) : (
           <ul className="divide-y divide-line">
             {rows.map((r) => (
-              <li key={r.id} className="flex items-center gap-3 px-4 py-3">
-                <Link href={`/costings/${r.id}`} className="min-w-0 flex-1">
+              <li key={r.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-3">
+                <Link href={`/costings/${r.id}`} className="min-w-0 sm:flex-1">
                   <p className="truncate font-medium text-ink">{r.projectName}</p>
                   <p className="truncate text-sm text-muted">
                     {r.clientName}

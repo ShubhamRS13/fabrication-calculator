@@ -91,7 +91,7 @@ export function MaterialsEditor({ materials }: { materials: Material[] }) {
           ))}
         </tbody>
       </table>
-      <form ref={form} action={add} className="grid grid-cols-3 gap-2 border-t border-line px-4 py-3 sm:grid-cols-[1fr_7rem_6rem_auto]">
+      <form ref={form} action={add} className="grid grid-cols-[1fr_1fr_auto] gap-2 border-t border-line px-4 py-3 sm:grid-cols-[1fr_7rem_6rem_auto]">
         <Input name="code" required placeholder="e.g. AL6061" aria-label="New material code" className="col-span-3 sm:col-span-1" />
         <Select name="family" defaultValue="OTHER" aria-label="Group">
           <option value="SS">SS</option>
