@@ -4,7 +4,7 @@ import { BUILT_IN_LIBRARY, type SectionLibrary } from "../sections-lib";
 import { f, optNum, pos, str } from "../helpers";
 import { circle, polar } from "../dev/geometry";
 import { devResult } from "../dev/result";
-import { join, n, thk } from "../size";
+import { join, n, opt, thk } from "../size";
 
 /** Bought items: priced qty × rate. Weight is optional and never costed by ₹/kg. */
 /** Older bought types (rate on the item). Kept so saved items work; the picker shows "Bought-out item". */
@@ -118,7 +118,7 @@ export const DISH_BLANK_FACTOR: Record<string, number> = {
 /** Large dished end formed by a third party: material from a square blank + job-work ₹. */
 export const dishedEnd: ItemType = {
   id: "dished-end",
-  size: (i) => join(thk(i), `OD ${n(i.od)}`, str(i, "dishType")),
+  size: (i) => join(thk(i), Number(i.od) > 0 ? `OD ${n(i.od)}` : null, opt(i, "blankDia", (v) => `blank Ø${v}`), str(i, "dishType")),
   category: "outsourced",
   label: "Dished end – blank by factor (third party)",
   description: "Quick estimate: blank ≈ factor × OD + 2 × straight face. Prefer the End cap types for an exact blank.",

@@ -19,6 +19,7 @@ describe("item Size text", () => {
     expect(size("disc", { dia: 500, thk: 5 })).toBe("5 THK × Ø500");
     expect(size("pipe-custom", { od: 60.3, thk: 3, length: 3000 })).toBe("OD 60.3 × 3 THK × 3000 L");
     expect(size("round-bar", { dia: 10, length: 648 })).toBe("Round bar Ø10 × 648 L");
+    expect(size("dished-end", { blankDia: 1017, thk: 3, dishType: "torispherical" })).toBe("3 THK × blank Ø1017 × torispherical");
   });
 
   it("bought-outs use their catalogue name; older items their typed text", () => {
