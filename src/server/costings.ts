@@ -469,7 +469,7 @@ export function toCostingInput(tree: CostingTree, mats: Material[], shapes: Cust
 export async function computeCostingById(
   db: Db,
   costingId: string,
-): Promise<{ tree: CostingTree; result: CostingOutput } | null> {
+): Promise<{ tree: CostingTree; input: CostingInput; result: CostingOutput } | null> {
   const [tree, mats, shapes, sections] = await Promise.all([
     getCostingTree(db, costingId),
     listMaterials(db),
@@ -477,7 +477,8 @@ export async function computeCostingById(
     loadSectionLibrary(db),
   ]);
   if (!tree) return null;
-  return { tree, result: computeCosting(toCostingInput(tree, mats, shapes, sections)) };
+  const input = toCostingInput(tree, mats, shapes, sections);
+  return { tree, input, result: computeCosting(input) };
 }
 
 // ---------- duplicate & search ----------

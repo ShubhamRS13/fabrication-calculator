@@ -57,9 +57,18 @@ async function Summary({ params }: { params: Promise<{ id: string }> }) {
         title="Costing summary"
         sub={`${c.clientName} · ${c.projectName}${c.poNo ? ` · PO ${c.poNo}` : ""}`}
         action={
-          <button disabled title="Coming in Milestone 4" className="h-10 rounded-lg border border-line bg-white px-3.5 text-sm font-medium opacity-50">
-            Export Excel / PDF
-          </button>
+          <div className="flex gap-2">
+            <a
+              href={`/costings/${c.id}/export/excel`}
+              download
+              className="inline-flex h-10 items-center rounded-lg border border-line bg-white px-3.5 text-sm font-medium hover:bg-paper"
+            >
+              Export Excel
+            </a>
+            <button disabled title="Coming in step 4.2" className="h-10 rounded-lg border border-line bg-white px-3.5 text-sm font-medium opacity-50">
+              PDF
+            </button>
+          </div>
         }
       />
       <MissingRatesBanner missing={result.missing} href={`/costings/${c.id}/pricing`} />

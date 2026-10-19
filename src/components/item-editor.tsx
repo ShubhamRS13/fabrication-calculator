@@ -8,6 +8,7 @@ import { buildRegistry } from "@/lib/calc/registry";
 import type { FieldDef, InputValue, ItemCategory, ItemResult, ItemType, Material } from "@/lib/calc/types";
 import { inr, kg, num, parseNum } from "@/lib/format";
 import { nextItemNo } from "@/lib/item-no";
+import { devLabel } from "@/lib/dev-labels";
 import type { SectionLibrary } from "@/lib/calc/sections-lib";
 import { ReferenceDiagram, TypeTile, hasDiagram } from "./diagrams";
 import { DevelopmentSketch } from "./sketch";
@@ -505,16 +506,6 @@ function MarkTableView({ table }: { table: NonNullable<ItemResult["markTable"]> 
     </details>
   );
 }
-
-const DEV_LABELS: Record<string, string> = {
-  Dm: "Mean dia Dm", Rb: "Mean base radius Rb", rt: "Mean top radius rt", apexHeight: "Apex height Ha", slant: "Slant to apex S",
-  R1: "R1 (outer radius)", R2: "R2 (inner radius)", theta: "Flat angle θ", chord: "Chord", girth: "Girth π × Dm",
-  height: "Height", shortest: "Shortest line", longest: "Longest line", offset: "Offset e", cutRadius: "Cut radius Rc",
-  depth: "Dish depth", meridian: "Meridian length", blankDia: "Blank dia", holeOnBlank: "Hole dia on blank",
-  OD: "OD", ID: "ID", PCD: "PCD", hA: "Panel A true height", hB: "Panel B true height",
-  flatWidth: "Flat width W", flatLength: "Flat length π × Dm", cutLength: "Cut length incl. allowance",
-};
-const devLabel = (k: string) => DEV_LABELS[k] ?? k;
 
 function ResultTable({ r, multiplier }: { r: ItemResult; multiplier: number }) {
   const rows: [string, number][] = [
