@@ -2,6 +2,9 @@ import { CalcError, type FieldDef, type ItemInputs, type ItemType, type Pt } fro
 import { diaRef, f, meanDia, optNum, pos, str } from "../helpers";
 import { circle, polar } from "../dev/geometry";
 import { devResult } from "../dev/result";
+import { dia, join, n, opt, thk } from "../size";
+
+const hole = (i: ItemInputs) => opt(i, "holeDia", (v) => `hole Ø${v}`);
 
 // Vessel end caps (Plate'n'Sheets "Vessel End Cap" group), on the mean surface.
 // A head is a surface of revolution; its meridian runs from the pole (x = 0)
@@ -150,6 +153,7 @@ const DIA: FieldDef = { key: "dia", label: "Base dia D", kind: "number", unit: "
 
 export const dishHemi: ItemType = {
   id: "dish-hemi",
+  size: (i) => join(thk(i), dia(i), hole(i)),
   category: "fabricated",
   family: FAMILY,
   label: "End cap – hemispherical",
@@ -168,6 +172,7 @@ export const dishHemi: ItemType = {
 
 export const dishEllip: ItemType = {
   id: "dish-ellip",
+  size: (i) => join(thk(i), dia(i), `depth ${n(i.depth)}`, hole(i)),
   category: "fabricated",
   family: FAMILY,
   label: "End cap – semi-elliptical",
@@ -191,6 +196,7 @@ export const dishEllip: ItemType = {
 
 export const dishTori: ItemType = {
   id: "dish-tori",
+  size: (i) => join(thk(i), dia(i), `CR ${n(i.crown)}`, `KR ${n(i.knuckle)}`, hole(i)),
   category: "fabricated",
   family: FAMILY,
   label: "End cap – torispherical",

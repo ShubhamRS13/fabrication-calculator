@@ -153,6 +153,8 @@ export interface ItemType {
    * one are priced by thickness ("4 mm").
    */
   priceRef?: (inputs: ItemInputs, lib: SectionLibrary) => PriceRef | null;
+  /** Size as on a drawing BOM, e.g. "5 THK × 600 × 12000". See `itemSize()` for the fallback. */
+  size?: (inputs: ItemInputs, lib: SectionLibrary) => string;
   /** Third-party job work (e.g. dish forming), priced on the Pricing page. */
   jobWorkRef?: (inputs: ItemInputs) => string | null;
   /** Older types kept so saved items work, but not offered in the picker. */

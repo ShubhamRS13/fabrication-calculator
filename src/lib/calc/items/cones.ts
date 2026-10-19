@@ -2,6 +2,12 @@ import { CalcError, type DevDim, type FieldDef, type ItemInputs, type ItemType, 
 import { diaRef, f, meanDia, num, optNum, pos } from "../helpers";
 import { arc, unrollStrip, type V3 } from "../dev/geometry";
 import { devResult } from "../dev/result";
+import { deg as angle, join, n, thk } from "../size";
+
+/** "2 THK × D1 700 × D2 1300 × H 760", with "(ID)" when the dias are inside dias. */
+function coneSize(i: ItemInputs, ...rest: string[]): string {
+  return join(thk(i), `D1 ${n(i.d1)}`, ...rest) + (i.diaRef === "ID" ? " (ID)" : "");
+}
 
 // Cones (Plate'n'Sheets "Cones" group). Mean diameters are used for development.
 //
@@ -199,6 +205,7 @@ const d_FIELD: FieldDef = { key: "d2", label: "Top dia d", kind: "number", unit:
 /** Kept as "cone" so saved items keep working. */
 export const coneFrustumHeight: ItemType = {
   id: "cone",
+  size: (i) => coneSize(i, `D2 ${n(i.d2)}`, `H ${n(i.height)}`),
   category: "fabricated",
   family: FAMILY,
   label: "Right cone frustum – top dia & height",
@@ -216,6 +223,7 @@ export const coneFrustumHeight: ItemType = {
 
 export const coneFrustumApex: ItemType = {
   id: "cone-apex",
+  size: (i) => coneSize(i, `D2 ${n(i.d2)}`, `apex H ${n(i.apexHeight)}`),
   category: "fabricated",
   family: FAMILY,
   label: "Right cone frustum – top dia & apex height",
@@ -227,6 +235,7 @@ export const coneFrustumApex: ItemType = {
 
 export const coneFrustumAngle: ItemType = {
   id: "cone-angle",
+  size: (i) => coneSize(i, `D2 ${n(i.d2)}`, `angle ${angle(i.angle)}`),
   category: "fabricated",
   family: FAMILY,
   label: "Right cone frustum – top dia & cone angle",
@@ -240,6 +249,7 @@ const ANGLE_HELP = "Negative tilts the other way";
 
 export const coneTruncTop: ItemType = {
   id: "cone-trunc-top",
+  size: (i) => coneSize(i, `angle ${angle(i.angle)}`, `cut H ${n(i.cutHeight)}`, `cut ${angle(i.cutAngle)}`),
   category: "fabricated",
   family: FAMILY,
   label: "Right cone – top truncated",
@@ -276,6 +286,7 @@ export const coneTruncTop: ItemType = {
 
 export const coneTruncBase: ItemType = {
   id: "cone-trunc-base",
+  size: (i) => coneSize(i, `D2 ${n(i.d2)}`, `H ${n(i.height)}`, `cut ${angle(i.cutAngle)}`),
   category: "fabricated",
   family: FAMILY,
   label: "Right cone – base truncated",
@@ -310,6 +321,7 @@ export const coneTruncBase: ItemType = {
 
 export const coneTruncBoth: ItemType = {
   id: "cone-trunc-both",
+  size: (i) => coneSize(i, `angle ${angle(i.angle)}`, `base ${angle(i.baseAngle)}`, `cut H ${n(i.cutHeight)}`, `cut ${angle(i.cutAngle)}`),
   category: "fabricated",
   family: FAMILY,
   label: "Right cone – top and base truncated",
@@ -393,6 +405,7 @@ function obliqueCone(inp: ItemInputs, density: number, offsetOf: (Rb: number, rt
 
 export const coneOblique90: ItemType = {
   id: "cone-oblique-90",
+  size: (i) => coneSize(i, `D2 ${n(i.d2)}`, `H ${n(i.height)}`),
   category: "fabricated",
   family: FAMILY,
   label: "Oblique cone – 90° side",
@@ -404,6 +417,7 @@ export const coneOblique90: ItemType = {
 
 export const coneObliqueOffset: ItemType = {
   id: "cone-oblique-offset",
+  size: (i) => coneSize(i, `D2 ${n(i.d2)}`, `H ${n(i.height)}`, `offset ${n(i.offset)}`),
   category: "fabricated",
   family: FAMILY,
   label: "Oblique cone – offset in one direction",

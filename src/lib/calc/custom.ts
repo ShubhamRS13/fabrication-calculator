@@ -1,6 +1,7 @@
 import { all, create, type EvalFunction } from "mathjs";
 import { CalcError, type ItemType } from "./types";
 import { f, num } from "./helpers";
+import { n as sizeNum } from "./size";
 
 /** A user-defined shape: named inputs + weight formulas (mm, g/cc → kg, per piece). */
 export interface CustomShapeDef {
@@ -91,6 +92,7 @@ export function makeCustomItemType(def: CustomShapeDef): ItemType {
     category: "custom",
     label: def.name,
     fields: def.inputs.map((i) => ({ key: i.key, label: i.label, kind: "number" as const, unit: i.unit })),
+    size: (inp) => def.inputs.map((i) => `${i.label} ${sizeNum(inp[i.key])}${i.unit === "deg" ? "°" : ""}`).join(" × "),
     compute(inp, { density }) {
       const scope: Record<string, number> = { PI: Math.PI, pi: Math.PI, e: Math.E, density };
       for (const i of def.inputs) scope[i.key] = num(inp, i.key, i.label);

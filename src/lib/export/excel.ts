@@ -10,8 +10,8 @@ import {
 } from "../calc/costing";
 import { familyOf } from "../calc/materials";
 import { buildRegistry } from "../calc/registry";
+import { itemSize } from "../calc/size";
 import type { PriceGroup } from "../calc/types";
-import { devSummary } from "../dev-labels";
 import { formatDate } from "../format";
 
 // Costing workbook (Milestone 4.1). Weights are written as numbers, exactly as the
@@ -264,13 +264,19 @@ function fillRates(ws: ExcelJS.Worksheet, data: ExcelExportData, logoId: number 
 
 // ---------- Drawing sheets ----------
 
-// Item table columns
+// Item table columns. Cost is one visible column; two hidden helper columns keep
+// its by-weight part and its bought-out / job-work part apart, because the cost
+// by material and the Summary sheet's Bought ₹ need them separately.
 const C = {
-  no: 1, name: 2, type: 3, asm: 4, mat: 5, qty: 6, asmQty: 7, pcs: 8, dev: 9,
-  finish: 10, process: 11, scrap: 12, burnPct: 13, burn: 14, len: 15, basis: 16,
-  priced: 17, unit: 18, rate: 19, matAmt: 20, credit: 21, fixed: 22, calc: 23,
+  no: 1, name: 2, type: 3, asm: 4, mat: 5, size: 6, qty: 7, pcs: 8,
+  finish: 9, process: 10, scrap: 11, burnPct: 12, burn: 13,
+  priced: 14, unit: 15, rate: 16, cost: 17, credit: 18,
+  /** Money column of the cost blocks below the items. */
+  net: 19,
+  /** Hidden helpers */
+  wtAmt: 20, fixed: 21,
 } as const;
-const LAST = C.calc;
+const LAST = C.credit;
 
 interface DrawingRefs {
   materials: { material: string; process: string; finish: string; scrap: string }[];
@@ -287,16 +293,18 @@ function fillDrawing(
   data: ExcelExportData,
   rates: RateRefs,
   typeLabel: (id: string) => string,
+  sizeOf: (it: ItemOutput) => string,
   logoId: number | undefined,
 ): DrawingRefs {
   const name = ws.name;
   const { header } = data;
   ws.columns = [
-    { width: 6 }, { width: 28 }, { width: 26 }, { width: 18 }, { width: 9 }, { width: 6 }, { width: 6 }, { width: 7 }, { width: 40 },
-    { width: 11 }, { width: 11 }, { width: 10 }, { width: 8 }, { width: 10 }, { width: 9 }, { width: 8 },
-    { width: 24 }, { width: 6 }, { width: 10 }, { width: 13 }, { width: 12 }, { width: 13 }, { width: 60 },
+    { width: 6 }, { width: 28 }, { width: 24 }, { width: 18 }, { width: 9 }, { width: 30 }, { width: 6 }, { width: 8 },
+    { width: 11 }, { width: 11 }, { width: 10 }, { width: 9 }, { width: 10 },
+    { width: 24 }, { width: 7 }, { width: 11 }, { width: 15 }, { width: 13 }, { width: 15 },
+    { width: 13, hidden: true }, { width: 13, hidden: true },
   ];
-  let r = letterhead(ws, data, C.fixed, logoId);
+  let r = letterhead(ws, data, C.net, logoId);
   ws.getCell(r, 1).value = `Drawing ${d.drawing.drawingNo}${d.drawing.title ? ` — ${d.drawing.title}` : ""}`;
   ws.getCell(r, 1).font = { bold: true, size: 14 };
   r++;
@@ -305,48 +313,52 @@ function fillDrawing(
 
   const hr = ws.getRow(r);
   hr.values = [
-    "No", "Item", "Type", "Assembly", "Material", "Qty", "Asm qty", "Pieces", "Development (per piece, mm)",
-    "Finish kg", "Process kg", "Scrap kg", "Burning %", "Burning kg", "Length m", "Basis",
-    "Priced as", "Unit", "Rate ₹", "Material ₹", "Scrap credit ₹", "Bought / job ₹", "Calculation (per piece)",
+    "No", "Item", "Type", "Assembly", "Material", "Size", "Qty", "Total qty",
+    "Finish kg", "Process kg", "Scrap kg", "Burning %", "Burning kg",
+    "Priced as", "Unit", "Rate ₹", "Material cost ₹", "Scrap credit ₹", "",
+    "By weight ₹ (helper)", "Bought / job ₹ (helper)",
   ];
   head(hr, 1, LAST);
+  head(hr, C.wtAmt, C.fixed);
   hr.height = 30;
   r++;
 
   const first = r;
   const asmById = new Map((d.drawing.assemblies ?? []).map((a) => [a.id, a]));
   for (const it of d.items) {
-    writeItem(ws.getRow(r), it, asmById.get(it.item.assemblyId ?? ""), rates, typeLabel, data);
+    writeItem(ws.getRow(r), it, asmById.get(it.item.assemblyId ?? ""), rates, typeLabel, sizeOf, data);
     alignItemRow(ws.getRow(r));
     r++;
   }
   const last = r - 1;
   const span = (col: number) => `${colLetter(col)}${first}:${colLetter(col)}${Math.max(first, last)}`;
 
-  // Totals of the item table
+  // Totals of the item table (bought-outs have no kg, as in the app)
+  const weighed = d.items.filter((i) => i.unit?.costedByWeight);
   const tr = ws.getRow(r);
   tr.getCell(C.name).value = "Total";
   const sums: [number, number, string][] = [
-    [C.finish, d.items.reduce((a, i) => a + i.finishWt, 0), KG],
-    [C.process, d.items.reduce((a, i) => a + i.processWt, 0), KG],
-    [C.scrap, d.items.reduce((a, i) => a + i.scrap, 0), KG],
-    [C.burn, d.items.reduce((a, i) => a + i.burning, 0), KG],
-    [C.matAmt, d.items.reduce((a, i) => a + i.materialAmount, 0), INR],
+    [C.finish, weighed.reduce((a, i) => a + i.finishWt, 0), KG],
+    [C.process, weighed.reduce((a, i) => a + i.processWt, 0), KG],
+    [C.scrap, weighed.reduce((a, i) => a + i.scrap, 0), KG],
+    [C.burn, weighed.reduce((a, i) => a + i.burning, 0), KG],
+    [C.cost, d.items.reduce((a, i) => a + i.materialAmount + i.fixedAmount, 0), INR],
     [C.credit, d.items.reduce((a, i) => a + i.scrapCredit, 0), INR],
+    [C.wtAmt, d.items.reduce((a, i) => a + i.materialAmount, 0), INR],
     [C.fixed, d.boughtTotal, INR],
   ];
   for (const [col, result, fmt] of sums) {
     tr.getCell(col).value = d.items.length ? fx(`SUM(${span(col)})`, result) : 0;
     tr.getCell(col).numFmt = fmt;
   }
-  totalRow(tr, 1, C.fixed);
+  totalRow(tr, 1, LAST);
   const boughtTotal = a1(r, C.fixed);
   r += 3;
 
-  // Cost blocks sit under the item columns they add up: kg under the kg columns,
-  // ₹ in the last money column (V), labels in the Item column.
+  // Cost blocks sit under the item columns they add up (kg under kg, material cost
+  // and scrap credit under theirs); their ₹ results go in the column after.
   const L = C.name;
-  const M = C.fixed;
+  const M = C.net;
   const title = (text: string) => {
     ws.getCell(r, L).value = text;
     ws.getCell(r, L).font = { bold: true, size: 12 };
@@ -358,14 +370,12 @@ function fillDrawing(
     head(row, L, M);
     r++;
   };
-  const letter = colLetter;
 
   // Cost by material (weight-costed items only, as in the app)
   title("Cost by material");
-  labels([[L, "Material"], [C.finish, "Finish kg"], [C.process, "Process kg"], [C.scrap, "Scrap kg"], [C.burn, "Burning kg"], [C.matAmt, "Material ₹"], [C.credit, "Scrap credit ₹"], [M, "Net ₹"]]);
+  labels([[L, "Material"], [C.finish, "Finish kg"], [C.process, "Process kg"], [C.scrap, "Scrap kg"], [C.burn, "Burning kg"], [C.cost, "Material cost ₹"], [C.credit, "Scrap credit ₹"], [M, "Net ₹"]]);
   const matRows: { material: string; row: number }[] = [];
-  const ifs = (col: number, row: number) =>
-    `SUMIFS(${span(col)},${span(C.mat)},$${letter(L)}$${row},${span(C.basis)},"Weight")`;
+  const ifs = (col: number, row: number) => `SUMIFS(${span(col)},${span(C.mat)},$${colLetter(L)}$${row})`;
   for (const t of d.byMaterial) {
     const row = ws.getRow(r);
     row.getCell(L).value = t.material;
@@ -374,9 +384,9 @@ function fillDrawing(
       [C.process, fx(ifs(C.process, r), t.process), KG],
       [C.scrap, fx(ifs(C.scrap, r), t.scrap), KG],
       [C.burn, fx(ifs(C.burn, r), t.burning), KG],
-      [C.matAmt, fx(ifs(C.matAmt, r), t.amount), INR],
+      [C.cost, fx(ifs(C.wtAmt, r), t.amount), INR],
       [C.credit, fx(ifs(C.credit, r), t.scrapCredit), INR],
-      [M, fx(`${a1(r, C.matAmt)}-${a1(r, C.credit)}`, t.net), INR],
+      [M, fx(`${a1(r, C.cost)}-${a1(r, C.credit)}`, t.net), INR],
     ];
     for (const [col, value, fmt] of cells) {
       row.getCell(col).value = value;
@@ -473,6 +483,7 @@ function writeItem(
   asm: { name: string; qty: number } | undefined,
   rates: RateRefs,
   typeLabel: (id: string) => string,
+  sizeOf: (it: ItemOutput) => string,
   data: ExcelExportData,
 ) {
   const r = row.number;
@@ -481,45 +492,38 @@ function writeItem(
   cell(C.no).value = it.item.itemNo ?? "";
   cell(C.name).value = it.item.name;
   cell(C.type).value = typeLabel(it.item.type);
-  cell(C.asm).value = asm?.name ?? "";
+  cell(C.asm).value = asm ? `${asm.name} × ${asm.qty}` : "";
   cell(C.mat).value = it.material;
+  cell(C.size).value = sizeOf(it);
   cell(C.qty).value = it.item.qty;
-  if (asm) cell(C.asmQty).value = asm.qty;
   cell(C.pcs).value = it.multiplier;
 
   const u = it.unit;
   if (!u || it.error) {
-    cell(C.calc).value = `Error: ${it.error ?? "not computed"}`;
-    cell(C.calc).font = { color: { argb: RED } };
+    cell(C.priced).value = `Error: ${it.error ?? "not computed"}`;
+    cell(C.priced).font = { color: { argb: RED } };
     fill(row, 1, LAST, FILL_MISSING);
     return;
   }
 
   const n = it.multiplier;
-  cell(C.dev).value = devSummary(u);
-  cell(C.finish).value = it.finishWt;
-  cell(C.process).value = it.processWt;
-  cell(C.scrap).value = it.scrap;
-  if (it.lengthM !== undefined) cell(C.len).value = it.lengthM;
-  cell(C.basis).value = u.costedByWeight ? "Weight" : "Bought";
-
   const price = it.price ? rates.price.get(it.price.key) : undefined;
   const stored = it.price ? data.input.prices?.[it.price.key] : undefined;
   const mat = rates.material.get(it.material);
-  const priced = [it.price?.label, it.job && `+ ${it.job.label}`].filter(Boolean).join(" ");
-  cell(C.priced).value = priced;
+  cell(C.priced).value = [it.price?.label, it.job && `+ ${it.job.label}`].filter(Boolean).join(" ");
 
-  // Bought-out / job-work amount, as the engine works it out.
+  // Bought-out / job-work part of the cost, as the engine works it out.
   const fixed: string[] = [];
-  let unitResult = "";
-  let rateResult = 0;
 
   if (u.costedByWeight) {
+    cell(C.finish).value = it.finishWt;
+    cell(C.process).value = it.processWt;
+    cell(C.scrap).value = it.scrap;
     cell(C.burnPct).value = it.burningPct;
     cell(C.burn).value = fx(`${at(C.process)}*${at(C.burnPct)}/100`, it.burning);
     const mRate = mat?.rate ?? "0";
-    rateResult = it.pricedBy === "material" ? (data.input.rates[it.material]?.rate ?? 0) : (stored?.rate ?? 0);
-    unitResult = it.pricedBy === "material" ? "kg" : (stored?.unit ?? "kg");
+    const rateResult = it.pricedBy === "material" ? (data.input.rates[it.material]?.rate ?? 0) : (stored?.rate ?? 0);
+    const unitResult = it.pricedBy === "material" ? "kg" : (stored?.unit ?? "kg");
     if (price) {
       cell(C.unit).value = fx(`IF(${price.rate}="","kg",${price.unit})`, unitResult);
       cell(C.rate).value = fx(`IF(${price.rate}="",${mRate},${price.rate})`, rateResult);
@@ -527,18 +531,18 @@ function writeItem(
       cell(C.unit).value = "kg";
       cell(C.rate).value = fx(mRate, rateResult);
     }
-    cell(C.matAmt).value = fx(
-      `IF(${at(C.unit)}="kg",(${at(C.process)}+${at(C.burn)})*${at(C.rate)},IF(${at(C.unit)}="m",${at(C.len)}*${at(C.rate)},${at(C.pcs)}*${at(C.rate)}))`,
+    // ₹/kg on process + burning; ₹/m on the cut metres; ₹/piece on the total qty.
+    cell(C.wtAmt).value = fx(
+      `IF(${at(C.unit)}="kg",(${at(C.process)}+${at(C.burn)})*${at(C.rate)},IF(${at(C.unit)}="m",${it.lengthM ?? 0}*${at(C.rate)},${at(C.pcs)}*${at(C.rate)}))`,
       it.materialAmount,
     );
     cell(C.credit).value = fx(`${at(C.scrap)}*${mat?.scrap ?? "0"}`, it.scrapCredit);
   } else if (it.price?.group === "bought" && price) {
     const perKg = Number(it.item.inputs.weight) || 0;
     const perM = (Number(it.item.inputs.pieceLength) || 0) / 1000;
-    unitResult = stored?.unit ?? data.result.prices.find((p) => p.key === it.price!.key)?.unit ?? "piece";
-    rateResult = stored?.rate ?? 0;
+    const unitResult = stored?.unit ?? data.result.prices.find((p) => p.key === it.price!.key)?.unit ?? "piece";
     cell(C.unit).value = fx(price.unit, unitResult);
-    cell(C.rate).value = fx(price.rate, rateResult);
+    cell(C.rate).value = fx(price.rate, stored?.rate ?? 0);
     fixed.push(
       `IF(${at(C.unit)}="kg",${n * perKg}*${at(C.rate)},IF(${at(C.unit)}="m",${n * perM}*${at(C.rate)},${at(C.pcs)}*${at(C.rate)}))`,
     );
@@ -553,21 +557,22 @@ function writeItem(
     fixed.push(job ? `IF(${job.rate}="",${fallback},${at(C.pcs)}*${job.rate})` : String(fallback));
   }
   if (fixed.length) cell(C.fixed).value = fx(fixed.join("+"), it.fixedAmount);
+  cell(C.cost).value = fx(`${at(C.wtAmt)}+${at(C.fixed)}`, it.materialAmount + it.fixedAmount);
 
-  cell(C.calc).value = u.formula;
   for (const col of [C.finish, C.process, C.scrap, C.burn]) cell(col).numFmt = KG;
-  cell(C.len).numFmt = "#,##0.00";
   cell(C.burnPct).numFmt = "0.##";
   cell(C.rate).numFmt = RATE;
-  for (const col of [C.matAmt, C.credit, C.fixed]) cell(col).numFmt = INR;
-  if (it.missing) fill(row, 1, C.fixed, FILL_MISSING);
+  for (const col of [C.cost, C.credit, C.wtAmt, C.fixed]) cell(col).numFmt = INR;
+  if (it.missing) fill(row, 1, LAST, FILL_MISSING);
 }
 
-/** Item rows grow with the development and calculation text; keep every cell at the top. */
+/** Long names and sizes wrap; every cell stays at the top of its row. */
 function alignItemRow(row: ExcelJS.Row) {
   for (let c = 1; c <= LAST; c++) {
-    const wrap = c === C.name || c === C.type || c === C.asm || c === C.dev || c === C.priced || c === C.calc;
-    row.getCell(c).alignment = { vertical: "top", wrapText: wrap };
+    const wrap = c === C.name || c === C.type || c === C.asm || c === C.size || c === C.priced;
+    // Text after a number column gets a small indent so they don't run together.
+    const indent = c === C.size || c === C.priced ? 1 : 0;
+    row.getCell(c).alignment = { vertical: "top", wrapText: wrap, indent };
   }
 }
 
@@ -704,6 +709,7 @@ export function buildCostingWorkbook(data: ExcelExportData): ExcelJS.Workbook {
     : undefined;
   const registry = buildRegistry(data.input.customShapes);
   const typeLabel = (id: string) => registry.get(id)?.label ?? id;
+  const sizeOf = (it: ItemOutput) => itemSize(registry.get(it.item.type), it.item.inputs, data.input.sections);
 
   const summary = wb.addWorksheet("Summary", { properties: { tabColor: { argb: "FF1F4E79" } } });
   const names = sheetNames(data.result.drawings);
@@ -714,7 +720,7 @@ export function buildCostingWorkbook(data: ExcelExportData): ExcelJS.Workbook {
   const drawings = data.result.drawings.map((d, i) => ({
     d,
     sheet: names[i],
-    refs: fillDrawing(sheets[i], d, data, rates, typeLabel, logoId),
+    refs: fillDrawing(sheets[i], d, data, rates, typeLabel, sizeOf, logoId),
   }));
   fillSummary(summary, data, drawings, rates, logoId);
   return wb;

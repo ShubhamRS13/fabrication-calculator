@@ -1,6 +1,7 @@
 import { CalcError, type FieldDef, type ItemInputs, type ItemType, type Pt } from "../types";
 import { diaRef, f, meanDia, num, pos } from "../helpers";
 import { devResult } from "../dev/result";
+import { deg as angle, dia, join, n, thk } from "../size";
 
 // Right cylinders (Plate'n'Sheets "Cylinders" group). The mean circumference
 // π·Dm unrolls to the strip length; the top edge follows the cut. A point at
@@ -85,6 +86,7 @@ function developCylinder(
 /** Kept as "shell" so saved items keep working. */
 export const cylinderFull: ItemType = {
   id: "shell",
+  size: (i) => join(thk(i), dia(i), `H ${n(i.height)}`),
   category: "fabricated",
   family: FAMILY,
   label: "Right cylinder – full",
@@ -106,6 +108,7 @@ const CUT_ANGLE: FieldDef = { key: "cutAngle", label: "Cut angle β", kind: "num
 
 export const cylinderTruncCentre: ItemType = {
   id: "cyl-trunc",
+  size: (i) => join(thk(i), dia(i), `H ${n(i.height)}`, `cut ${angle(i.cutAngle)}`),
   category: "fabricated",
   family: FAMILY,
   label: "Right cylinder – top truncated",
@@ -125,6 +128,7 @@ export const cylinderTruncCentre: ItemType = {
 
 export const cylinderTruncSide: ItemType = {
   id: "cyl-trunc-side",
+  size: (i) => join(thk(i), dia(i), `side H ${n(i.sideHeight)}`, `cut ${angle(i.cutAngle)}`),
   category: "fabricated",
   family: FAMILY,
   label: "Right cylinder – top truncated (angle and side)",
@@ -145,6 +149,7 @@ export const cylinderTruncSide: ItemType = {
 
 export const cylinderTruncHeights: ItemType = {
   id: "cyl-trunc-heights",
+  size: (i) => join(thk(i), dia(i), `H1 ${n(i.h1)}`, `H2 ${n(i.h2)}`),
   category: "fabricated",
   family: FAMILY,
   label: "Right cylinder – top truncated (heights)",
@@ -171,6 +176,7 @@ export const cylinderTruncHeights: ItemType = {
 
 export const cylinderTruncRadius: ItemType = {
   id: "cyl-trunc-radius",
+  size: (i) => join(thk(i), dia(i), `H ${n(i.height)}`, `R ${n(i.radius)}`),
   category: "fabricated",
   family: FAMILY,
   label: "Right cylinder – top truncated by a radius",
@@ -200,6 +206,7 @@ export const cylinderTruncRadius: ItemType = {
 
 export const cylinderGable: ItemType = {
   id: "cyl-gable",
+  size: (i) => join(thk(i), dia(i), `H ${n(i.height)}`, `cut ${angle(i.cutAngle)}`),
   category: "fabricated",
   family: FAMILY,
   label: "Right cylinder – gable vent",

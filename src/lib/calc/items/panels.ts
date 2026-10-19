@@ -2,6 +2,7 @@ import { CalcError, type DevPiece, type ItemType, type Pt } from "../types";
 import { bool, f, pos } from "../helpers";
 import { rect } from "../dev/geometry";
 import { devResult } from "../dev/result";
+import { join, n, thk } from "../size";
 
 const FAMILY = "Hoppers & ducts";
 
@@ -29,6 +30,7 @@ function trapezoid(name: string, count: number, top: number, bottom: number, h: 
 /** Rect-to-rect pyramid hopper, concentric. Process = each panel's bounding rectangle. */
 export const pyramidHopper: ItemType = {
   id: "pyramid-hopper",
+  size: (i) => join(thk(i), `top ${n(i.topL)} × ${n(i.topW)}`, `bottom ${n(i.botL)} × ${n(i.botW)}`, `H ${n(i.height)}`),
   category: "fabricated",
   family: FAMILY,
   label: "Pyramid hopper (rect to rect)",
@@ -73,6 +75,7 @@ const FACES = ["top", "bottom", "front", "back", "left", "right"] as const;
 /** Rectangular duct / box: length along L, cross-section W × H. Ends are left/right. */
 export const rectDuct: ItemType = {
   id: "rect-duct",
+  size: (i) => join(thk(i), n(i.length), n(i.width), `H ${n(i.height)}`),
   category: "fabricated",
   family: FAMILY,
   label: "Rectangular duct / box",

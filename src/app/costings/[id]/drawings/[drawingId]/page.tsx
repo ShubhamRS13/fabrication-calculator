@@ -5,10 +5,11 @@ import { ChargeList, MaterialTable } from "@/components/totals";
 import { ButtonLink, Card, CardHeader, Empty, PageTitle, Skeleton, Stat } from "@/components/ui";
 import type { ItemOutput } from "@/lib/calc/costing";
 import { buildRegistry } from "@/lib/calc/registry";
+import { itemSize } from "@/lib/calc/size";
 import { inr, kg, num } from "@/lib/format";
 import { compareItemNo } from "@/lib/item-no";
 import { loadDrawing } from "@/server/load";
-import { getCustomShapes, getMaterials } from "@/server/queries";
+import { getCustomShapes, getMaterials, getSectionLibrary } from "@/server/queries";
 
 export default function DrawingPage(props: PageProps<"/costings/[id]/drawings/[drawingId]">) {
   return (
@@ -19,11 +20,12 @@ export default function DrawingPage(props: PageProps<"/costings/[id]/drawings/[d
 }
 
 async function Drawing({ params }: { params: Promise<{ id: string; drawingId: string }> }) {
-  const [{ tree, drawing, out }, mats, shapes] = await Promise.all([loadDrawing(params), getMaterials(), getCustomShapes()]);
+  const [{ tree, drawing, out }, mats, shapes, lib] = await Promise.all([loadDrawing(params), getMaterials(), getCustomShapes(), getSectionLibrary()]);
   const c = tree.costing;
   const registry = buildRegistry(shapes);
   const base = `/costings/${c.id}/drawings/${drawing.id}`;
   const label = (type: string) => registry.get(type)?.label ?? type;
+  const size = (it: ItemOutput) => itemSize(registry.get(it.item.type), it.item.inputs, lib);
 
   const byNo = (x: ItemOutput, y: ItemOutput) => compareItemNo(x.item.itemNo ?? "", y.item.itemNo ?? "");
   const loose = out.items.filter((i) => !i.item.assemblyId).sort(byNo);
@@ -43,6 +45,7 @@ async function Drawing({ params }: { params: Promise<{ id: string; drawingId: st
             {it.item.name}
             {it.item.dwgSheet && <span className="font-normal text-muted"> · sheet {it.item.dwgSheet}</span>}
           </p>
+          {size(it) && <p className="truncate text-sm">{size(it)}</p>}
           <p className="truncate text-sm text-muted">
             {label(it.item.type)} · {it.unit?.costedByWeight === false ? "bought" : it.material} · qty {num(it.item.qty)}
             {it.multiplier !== it.item.qty && ` (× ${num(it.multiplier / it.item.qty)} = ${num(it.multiplier)})`}

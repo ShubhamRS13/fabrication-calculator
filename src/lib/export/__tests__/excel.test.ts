@@ -118,15 +118,24 @@ describe("Excel export", () => {
       d.items.forEach((it, i) => {
         const r = first + i;
         expect(x.value(sheet, r, 2)).toBe(it.item.name);
+        // Material cost = by weight + bought-out / job work (the hidden helper columns).
+        expect(Number(x.value(sheet, r, 17) ?? 0)).toBeCloseTo(it.materialAmount + it.fixedAmount, 6);
+        expect(Number(x.value(sheet, r, 18) ?? 0)).toBeCloseTo(it.scrapCredit, 6);
         expect(Number(x.value(sheet, r, 20) ?? 0)).toBeCloseTo(it.materialAmount, 6);
-        expect(Number(x.value(sheet, r, 21) ?? 0)).toBeCloseTo(it.scrapCredit, 6);
-        expect(Number(x.value(sheet, r, 22) ?? 0)).toBeCloseTo(it.fixedAmount, 6);
+        expect(Number(x.value(sheet, r, 21) ?? 0)).toBeCloseTo(it.fixedAmount, 6);
       });
       const matRow = x.find(sheet, 2, "Material total");
-      expect(x.value(sheet, matRow, 22)).toBeCloseTo(d.materialTotal, 6);
-      expect(x.value(sheet, x.find(sheet, 2, "Charges total"), 22)).toBeCloseTo(d.chargesTotal, 6);
-      expect(x.value(sheet, x.find(sheet, 2, "Total", matRow), 22)).toBeCloseTo(d.total, 6);
+      expect(x.value(sheet, matRow, 19)).toBeCloseTo(d.materialTotal, 6);
+      expect(x.value(sheet, x.find(sheet, 2, "Charges total"), 19)).toBeCloseTo(d.chargesTotal, 6);
+      expect(x.value(sheet, x.find(sheet, 2, "Total", matRow), 19)).toBeCloseTo(d.total, 6);
     }
+
+    // Size, total qty and the assembly with its qty.
+    const frame = x.find("P-01", 2, "Frame plate");
+    expect(x.value("P-01", frame, 4)).toBe("Frame × 2");
+    expect(x.value("P-01", frame, 6)).toBe("10 THK × 400 × 500");
+    expect(x.value("P-01", frame, 8)).toBe(6);
+    expect(x.value("P-01", x.find("P-01", 2, "50 NB"), 6)).toBe("50 NB SCH 10S × 3000 L");
 
     const sub = x.find("Summary", 9, "Subtotal");
     expect(x.value("Summary", sub, 12)).toBeCloseTo(result.subtotal, 6);
@@ -166,7 +175,7 @@ describe("Excel export", () => {
     for (const d of app.drawings) {
       const sheet = d.drawing.drawingNo;
       const matTotal = x.find(sheet, 2, "Material total");
-      expect(x.value(sheet, x.find(sheet, 2, "Total", matTotal), 22)).toBeCloseTo(d.total, 6);
+      expect(x.value(sheet, x.find(sheet, 2, "Total", matTotal), 19)).toBeCloseTo(d.total, 6);
     }
     expect(x.value("Summary", x.find("Summary", 9, "Grand total"), 12)).toBeCloseTo(app.grandTotal, 6);
   });

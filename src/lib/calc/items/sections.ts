@@ -2,6 +2,7 @@ import { CalcError, type FieldDef, type ItemResult, type ItemType } from "../typ
 import { f, optNum, pos, str } from "../helpers";
 import { MS_DENSITY, SERIES_INFO } from "../data/sections";
 import { BUILT_IN_LIBRARY, bySize, type SectionLibrary } from "../sections-lib";
+import { join, n, thk } from "../size";
 
 // Pipes, tubes, bars and rolled sections. All are cut to length:
 // process = finish = kg/m × L / 1000, scrap 0. Table sizes come from the section
@@ -90,6 +91,7 @@ export const pipeIs1239: ItemType = {
 
 export const pipeSwg: ItemType = {
   id: "pipe-swg",
+  size: (i) => join(`OD ${n(i.od)}`, `${String(i.swg ?? "?")} SWG`, `${n(i.length)} L`),
   category: "section",
   family: PIPES,
   label: "Pipe / tube (OD + SWG)",
@@ -114,6 +116,7 @@ export const pipeSwg: ItemType = {
 
 export const pipeCustom: ItemType = {
   id: "pipe-custom",
+  size: (i) => join(`OD ${n(i.od)}`, thk(i), `${n(i.length)} L`),
   category: "section",
   family: PIPES,
   label: "Pipe / tube custom",
@@ -135,6 +138,7 @@ export const pipeCustom: ItemType = {
 
 export const rectTube: ItemType = {
   id: "rect-tube",
+  size: (i) => join(n(i.a), n(i.b), thk(i), `${n(i.length)} L`),
   category: "section",
   family: BARS,
   label: "Square / rectangular tube",

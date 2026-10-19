@@ -2,12 +2,14 @@ import { CalcError, type FieldDef, type ItemInputs, type ItemType, type Pt } fro
 import { f, optNum, pos } from "../helpers";
 import { circle, polar, rect } from "../dev/geometry";
 import { devResult } from "../dev/result";
+import { join, n, thk } from "../size";
 
 const THK: FieldDef = { key: "thk", label: "THK", kind: "number", unit: "mm" };
 const FAMILY = "Plates & flanges";
 
 export const plate: ItemType = {
   id: "plate",
+  size: (i) => join(thk(i), n(i.width), n(i.length)),
   category: "fabricated",
   family: FAMILY,
   label: "Plate / sheet (rectangular)",
@@ -43,6 +45,7 @@ export const plate: ItemType = {
  */
 export const flat: ItemType = {
   id: "flat",
+  size: (i) => join(thk(i), n(i.width), n(i.length)),
   category: "fabricated",
   family: FAMILY,
   label: "Flat",
@@ -71,6 +74,7 @@ export const flat: ItemType = {
 
 export const disc: ItemType = {
   id: "disc",
+  size: (i) => join(thk(i), `Ø${n(i.dia)}`),
   category: "fabricated",
   family: FAMILY,
   label: "Circular disc / blank",
@@ -106,6 +110,7 @@ const num0 = (x: unknown) => Number(x) || 0;
 
 export const ringFlange: ItemType = {
   id: "ring-flange",
+  size: (i) => join(thk(i), `ID ${n(i.id)}`, `OD ${n(i.od)}`),
   category: "fabricated",
   family: FAMILY,
   label: "Ring / circular flange",
@@ -242,6 +247,7 @@ export const ringFlange: ItemType = {
 
 export const rectFlange: ItemType = {
   id: "rect-flange",
+  size: (i) => join(thk(i), n(i.length), n(i.width), `inner ${n(i.innerL)} × ${n(i.innerW)}`),
   category: "fabricated",
   family: FAMILY,
   label: "Rectangular flange / frame",
@@ -282,6 +288,7 @@ export const rectFlange: ItemType = {
 
 export const bentPlate: ItemType = {
   id: "bent-plate",
+  size: (i) => join(thk(i), `girth ${n(i.girth)}`, n(i.length)),
   category: "fabricated",
   family: FAMILY,
   label: "Bent plate / formed channel",
