@@ -184,7 +184,7 @@ describe("Excel export", () => {
     const data = exportData(costing());
     expect(data.result.missing.length).toBeGreaterThan(0);
     const x = await recalc(data);
-    const box = x.find("Summary", 2, `Rates missing (${data.result.missing.length}) — these amounts count as 0. Enter them on the Rates sheet or the Pricing page.`);
+    const box = x.find("Summary", 2, `Rates missing (${data.result.missing.length}) — these amounts count as 0. Enter them on the Rates sheet here or the Rates page in the app.`);
     data.result.missing.forEach((m, i) => expect(x.value("Summary", box + 1 + i, 2)).toBe(`•  ${m.label}`));
     // The dish needs job work that has no rate: its row is tinted.
     const ws = x.wb.getWorksheet("P-01")!;

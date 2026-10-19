@@ -6,7 +6,7 @@ import { formatDate } from "@/lib/format";
 import { loadCosting } from "@/server/load";
 import { getLastUsedRates, getMaterials, searchCostings } from "@/server/queries";
 
-export const metadata = { title: "Pricing" };
+export const metadata = { title: "Rates" };
 
 export default function PricingPage(props: PageProps<"/costings/[id]/pricing">) {
   return (
@@ -65,7 +65,7 @@ async function Pricing({ params }: { params: Promise<{ id: string }> }) {
     <>
       <PageTitle
         back={{ href: `/costings/${c.id}`, label: c.projectName }}
-        title="Pricing"
+        title="Rates"
         sub="Every rate for this costing in one place. Saved when you leave a box. Blank = missing; 0 = free."
       />
       <PricingBoard data={data} />

@@ -47,8 +47,8 @@ export const boughtOut: ItemType = {
   category: "bought",
   family: "Bought-outs",
   label: "Bought-out item",
-  description: "Flanges, stub ends, fittings, fasteners, hoses, gaskets… picked from the catalogue. Priced on the Pricing page.",
-  formulaText: ["Price = quantity × rate (₹/piece, ₹/set, ₹/kg or ₹/m, set on the Pricing page)"],
+  description: "Flanges, stub ends, fittings, fasteners, hoses, gaskets… picked from the catalogue. Priced on the Rates page.",
+  formulaText: ["Price = quantity × rate (₹/piece, ₹/set, ₹/kg or ₹/m, set on the Rates page)"],
   fields: [
     {
       key: "kind",
@@ -83,7 +83,7 @@ export const boughtOut: ItemType = {
       fixedCost: 0,
       costedByWeight: false,
       formula: `${boughtLabel(kind, inp)}
-Priced on the Pricing page (quantity × rate)`,
+Priced on the Rates page (quantity × rate)`,
     };
   },
 };

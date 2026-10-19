@@ -6,7 +6,7 @@ import { inr, kg } from "@/lib/format";
 import { loadCosting } from "@/server/load";
 import { MissingRatesBanner } from "@/components/missing-rates";
 
-export const metadata = { title: "Summary" };
+export const metadata = { title: "Costing summary" };
 
 export default function SummaryPage(props: PageProps<"/costings/[id]/summary">) {
   return (

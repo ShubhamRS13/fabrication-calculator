@@ -6,7 +6,7 @@ import { loadCosting } from "@/server/load";
 
 export const metadata = { title: "Details" };
 
-/** Costing details: client, project, PO, defaults. All rates live on the Pricing page. */
+/** Costing details: client, project, PO, defaults. All rates live on the Rates page. */
 export default function DetailsPage(props: PageProps<"/costings/[id]/setup">) {
   return (
     <Suspense fallback={<Skeleton lines={4} />}>
@@ -23,8 +23,8 @@ async function Details({ params }: { params: Promise<{ id: string }> }) {
       <PageTitle
         back={{ href: `/costings/${c.id}`, label: c.projectName }}
         title="Details"
-        sub="Client, project and defaults. Rates, charges and profit are on the Pricing page."
-        action={<ButtonLink href={`/costings/${c.id}/pricing`} variant="primary">Pricing →</ButtonLink>}
+        sub="Client, project and defaults. Rates, charges and profit are on the Rates page."
+        action={<ButtonLink href={`/costings/${c.id}/pricing`} variant="primary">Rates →</ButtonLink>}
       />
       <Card>
         <CardHeader title="Costing details" />

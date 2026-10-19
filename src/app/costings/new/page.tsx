@@ -8,7 +8,7 @@ export const metadata = { title: "New costing" };
 export default function NewCostingPage() {
   return (
     <>
-      <PageTitle title="New costing" back={{ href: "/", label: "Costings" }} sub="Rates, charges and profit go on the costing's Pricing page." />
+      <PageTitle title="New costing" back={{ href: "/", label: "Costings" }} sub="Rates, charges and profit go on the costing's Rates page." />
       <Card>
         <Suspense fallback={<div className="p-4"><Skeleton lines={3} /></div>}>
           <NewForm />

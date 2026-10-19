@@ -205,7 +205,7 @@ function fillRates(ws: ExcelJS.Worksheet, data: ExcelExportData, logoId: number 
   r++;
 
   // Price rows (Pricing page)
-  ws.getCell(r, 1).value = "Prices (from the Pricing page)";
+  ws.getCell(r, 1).value = "Prices (from the Rates page)";
   ws.getCell(r, 1).font = { bold: true, size: 12 };
   r++;
   ws.getRow(r).values = ["Priced as", "Material", "Item / size", "Unit", "Rate ₹", "Process kg", "Metres", "Pieces", "Drawings", "Note"];
@@ -618,7 +618,7 @@ function fillSummary(
       cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: FILL_MISSING } };
       r++;
     };
-    box(`Rates missing (${result.missing.length}) — these amounts count as 0. Enter them on the Rates sheet or the Pricing page.`, true);
+    box(`Rates missing (${result.missing.length}) — these amounts count as 0. Enter them on the Rates sheet here or the Rates page in the app.`, true);
     for (const m of result.missing) box(`•  ${m.label}`);
     r++;
   }

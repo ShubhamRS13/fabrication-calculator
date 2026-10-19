@@ -8,7 +8,7 @@ export function MissingRatesBanner({ missing, href }: { missing: { label: string
     <p className="mb-4 rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">
       <strong>{missing.length} rate{missing.length === 1 ? "" : "s"} missing</strong> — totals are understated until they are entered: {shown}
       {missing.length > 4 && ` and ${missing.length - 4} more`}.{" "}
-      <Link href={href} className="font-medium underline">Open Pricing</Link>
+      <Link href={href} className="font-medium underline">Open Rates</Link>
     </p>
   );
 }

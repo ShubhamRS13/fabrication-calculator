@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
-/** The size rate chart is now part of the Pricing page. */
+/** The size rate chart is now part of the Rates page (route /pricing). */
 export default function OldRatesPage(props: PageProps<"/costings/[id]/rates">) {
   return (
     <Suspense>

@@ -376,7 +376,7 @@ function ItemEditorForm({
 
       <div className="space-y-4 lg:sticky lg:top-20 lg:self-start">
         <Card>
-          <CardHeader title="Result" sub={isBought ? `${effMaterial} · priced on the Pricing page` : `${effMaterial} · density ${density ?? "?"} g/cc`} />
+          <CardHeader title="Result" sub={isBought ? `${effMaterial} · priced on the Rates page` : `${effMaterial} · density ${density ?? "?"} g/cc`} />
           <div className="px-4 py-2">
             {live?.error && <p className="py-2 text-sm text-muted">{live.error}</p>}
             {r && isBought && (
@@ -385,7 +385,7 @@ function ItemEditorForm({
                 <Stat label="Quantity" value={num(multiplier)} />
                 {r.fixedCost > 0 && <Stat label="Rate on this item (older entry)" value={inr(r.fixedCost)} />}
                 <p className="py-2 text-xs text-muted">
-                  The same item, size and material on any drawing shares one rate, entered on the costing&apos;s Pricing page. Price only — no weight is added.
+                  The same item, size and material on any drawing shares one rate, entered on the costing&apos;s Rates page. Price only — no weight is added.
                 </p>
               </>
             )}
