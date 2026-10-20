@@ -32,6 +32,7 @@ async function Overview({ params }: { params: Promise<{ id: string }> }) {
             <ButtonLink href={`${base}/setup`}>Details</ButtonLink>
             <ButtonLink href={`${base}/pricing`}>Rates{result.missing.length > 0 && <span className="ml-1 rounded-full bg-danger px-1.5 text-xs text-white">{result.missing.length}</span>}</ButtonLink>
             <ButtonLink href={`${base}/summary`}>Costing Summary</ButtonLink>
+            <ButtonLink href={`${base}/raw-material`}>Raw material</ButtonLink>
           </>
         }
       />

@@ -27,7 +27,9 @@ export const RM_GROUP_LABEL: Record<RmGroup, string> = {
 
 /** One use of a row: an item (or one flat piece of it) on a drawing. */
 export interface RmLine {
+  drawingId: string;
   drawingNo: string;
+  itemId: string;
   itemNo?: string;
   itemName: string;
   /** Assembly name, when the item sits in one. */
@@ -72,7 +74,9 @@ export interface RmRow {
 }
 
 export interface RmSkipped {
+  drawingId: string;
   drawingNo: string;
+  itemId: string;
   itemNo?: string;
   itemName: string;
   error: string;
@@ -124,7 +128,9 @@ export function rawMaterialList(c: CostingInput, out: CostingOutput): RawMateria
     const assemblies = new Map((d.drawing.assemblies ?? []).map((a) => [a.id, a.name]));
     for (const it of d.items) {
       const base = {
+        drawingId: d.drawing.id,
         drawingNo,
+        itemId: it.item.id,
         itemNo: it.item.itemNo,
         itemName: it.item.name,
         assembly: it.item.assemblyId ? assemblies.get(it.item.assemblyId) : undefined,
