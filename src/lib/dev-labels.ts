@@ -5,6 +5,7 @@ export const DEV_LABELS: Record<string, string> = {
   height: "Height", shortest: "Shortest line", longest: "Longest line", offset: "Offset e", cutRadius: "Cut radius Rc",
   depth: "Dish depth", meridian: "Meridian length", blankDia: "Blank dia", holeOnBlank: "Hole dia on blank",
   OD: "OD", ID: "ID", PCD: "PCD", hA: "Panel A true height", hB: "Panel B true height",
+  Am: "Mean side A", Bm: "Mean side B", rc: "Mean corner radius r", lineA: "A side centre line (true)", lineB: "B side centre line (true)",
   flatWidth: "Flat width W", flatLength: "Flat length π × Dm", cutLength: "Cut length incl. allowance",
 };
 

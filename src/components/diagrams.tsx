@@ -347,6 +347,28 @@ const DIAGRAMS: Record<string, () => ReactNode> = {
       <DimV y1={50} y2={150} x={16} label="H" from={[30, 84]} />
     </Svg>
   ),
+  "transition-rect-round": () => (
+    <Svg label="Transition rectangle to round: plan with sides A and B, round dia D, corner radius r; elevation with height H">
+      {/* plan: lines fan from each corner to a quarter of the circle (centre 78,80, radius 30) */}
+      <Gens
+        top={[[78, 50], [57, 59], [48, 80], [78, 50], [99, 59], [108, 80], [78, 110], [57, 101], [48, 80], [78, 110], [99, 101], [108, 80]]}
+        bottom={[[33, 31], [33, 31], [33, 31], [123, 31], [123, 31], [123, 31], [33, 129], [33, 129], [33, 129], [123, 129], [123, 129], [123, 129]]}
+      />
+      <Shape d="M38,30 L118,30 Q124,30 124,36 L124,124 Q124,130 118,130 L38,130 Q32,130 32,124 L32,36 Q32,30 38,30 Z" fill={false} />
+      <circle cx={78} cy={80} r={30} fill="#1d4ed810" stroke={BLUE} strokeWidth={1.6} />
+      <line x1={57} y1={101} x2={99} y2={59} stroke={INK} strokeWidth={0.9} markerStart="url(#da)" markerEnd="url(#da)" />
+      <Label x={88} y={86}>D</Label>
+      <Label x={128} y={26} a="start">r</Label>
+      <DimH x1={32} x2={124} y={150} label="A" from={[130, 130]} />
+      <DimV y1={30} y2={130} x={16} label="B" from={[32, 32]} />
+      {/* elevation */}
+      <Gens top={[[154, 120], [168, 120], [182, 120]]} bottom={[[136, 180], [168, 180], [200, 180]]} />
+      <Shape d="M136,180 L200,180 L182,120 L154,120 Z" />
+      <Axis x={168} y1={110} y2={190} />
+      <DimV y1={120} y2={180} x={210} label="" from={[182, 200]} />
+      <Label x={214} y={154}>H</Label>
+    </Svg>
+  ),
   "rect-duct": () => (
     <Svg label="Rectangular duct: length L, width W, height H">
       <Shape d="M40,80 L150,80 L150,150 L40,150 Z" />
@@ -633,7 +655,20 @@ const TILES: Record<string, () => ReactNode> = {
   "dish-ellip": () => <Solid rb={28} rt={28} top={44} roundTop="dome" />,
   "dish-tori": () => <Solid rb={28} rt={28} top={50} roundTop="dome" />,
   "dished-end": () => <Solid rb={28} rt={28} top={50} roundTop="dome" />,
+  "transition-rect-round": () => <RectToRoundTile />,
 };
+
+/** Square base, round top: two visible flat faces with a cone between them. */
+function RectToRoundTile() {
+  return (
+    <svg viewBox="0 0 80 80" className="size-14 shrink-0" aria-hidden="true">
+      {GRAD}
+      <path d="M10,62 L46,70 L52,22 Q40,26 30,20 Z" fill="url(#metal)" stroke="#374151" strokeWidth={0.6} />
+      <path d="M46,70 L72,58 L54,20 Q53,21 52,22 Z" fill="#6b7280" stroke="#374151" strokeWidth={0.6} />
+      <ellipse cx={42} cy={20} rx={12} ry={4} fill="#374151" stroke="#1f2937" strokeWidth={0.6} />
+    </svg>
+  );
+}
 
 /** Picker tile picture: a 3D solid where we have one, else the elevation drawing. */
 export function TypeTile({ typeId }: { typeId: string }) {

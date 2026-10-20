@@ -118,3 +118,24 @@ function triArea3(a: V3, b: V3, c: V3) {
   const v: V3 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
   return Math.hypot(u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]) / 2;
 }
+
+/**
+ * Unroll an open strip between two 3D polylines whose points correspond
+ * (top[i] joins bottom[i] by a straight line). Repeated points are fine: a run
+ * of equal top points with moving bottom points is a flat triangle, and the
+ * other way round. Returns the flat polylines and the true surface area.
+ */
+export function unrollOpen(top: V3[], bottom: V3[]) {
+  const t: Pt[] = [[0, dist3(top[0], bottom[0])]];
+  const b: Pt[] = [[0, 0]];
+  let area = 0;
+  for (let i = 0; i + 1 < top.length; i++) {
+    const j = i + 1;
+    const bj = triangulate(t[i], b[i], dist3(top[i], bottom[j]), dist3(bottom[i], bottom[j]));
+    const tj = triangulate(t[i], bj, dist3(top[i], top[j]), dist3(bottom[j], top[j]));
+    b.push(bj);
+    t.push(tj);
+    area += triArea3(bottom[i], top[i], bottom[j]) + triArea3(top[i], bottom[j], top[j]);
+  }
+  return { top: t, bottom: b, area };
+}
