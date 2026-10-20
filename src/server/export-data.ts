@@ -25,8 +25,8 @@ export async function loadExportData(id: string): Promise<ExportData | null> {
 }
 
 /** A file download response with a safe file name. */
-export function download(body: Uint8Array, data: ExportData, ext: string, contentType: string): Response {
-  const name = exportFileName(data.header, ext);
+export function download(body: Uint8Array, data: ExportData, ext: string, contentType: string, prefix?: string): Response {
+  const name = exportFileName(data.header, ext, prefix);
   return new Response(body as BodyInit, {
     headers: {
       "Content-Type": contentType,

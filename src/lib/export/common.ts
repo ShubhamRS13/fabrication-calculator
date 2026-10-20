@@ -49,8 +49,8 @@ export const missingNote = (count: number, where: string) =>
   `Rates missing (${count}) — these amounts count as 0. Enter them on ${where}.`;
 
 /** "Costing - Client - Project.xlsx", safe for a download name. */
-export function exportFileName(header: ExportHeader, ext: string): string {
-  const base = ["Costing", header.clientName, header.projectName].filter(Boolean).join(" - ");
+export function exportFileName(header: ExportHeader, ext: string, prefix = "Costing"): string {
+  const base = [prefix, header.clientName, header.projectName].filter(Boolean).join(" - ");
   return `${base.replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim().slice(0, 120)}.${ext}`;
 }
 

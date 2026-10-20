@@ -227,3 +227,19 @@ function groupOf(it: ItemOutput, type: ItemType | undefined, lib: SectionLibrary
   return "other";
 }
 
+
+/** What to order for a row, in the unit it is bought in. */
+export function rmBuy(r: RmRow): { qty: number; unit: "kg" | "m" | "pcs" | "sets" } {
+  if (r.group === "sheet" || r.group === "other") return { qty: r.buyKg, unit: "kg" };
+  if (r.group === "pipe" || r.group === "flat" || r.group === "section") return { qty: r.lengthM, unit: "m" };
+  if (r.unit === "m" && r.lengthM > 0) return { qty: r.lengthM, unit: "m" };
+  if (r.unit === "kg" && r.finishKg > 0) return { qty: r.finishKg, unit: "kg" };
+  return { qty: r.pieces, unit: r.unit === "set" ? "sets" : "pcs" };
+}
+
+/** "largest 300 × 300" for sheets, "longest 5,552 mm" for lengths; blank otherwise. */
+export function rmSizeNote(r: RmRow, fmt: (n: number) => string): string {
+  if (r.group === "sheet" && r.largest) return `largest ${fmt(r.largest.w)} × ${fmt(r.largest.l)}`;
+  if ((r.group === "pipe" || r.group === "flat" || r.group === "section") && r.longestMm > 0) return `longest ${fmt(r.longestMm)} mm`;
+  return "";
+}

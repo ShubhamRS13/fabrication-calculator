@@ -14,15 +14,15 @@ export type ExcelExportData = ExportData;
 // changing a rate in Excel updates the whole workbook. Each formula also carries
 // the engine's result, so the file shows the right numbers before recalculation.
 
-const KG = "#,##0.000";
+export const KG = "#,##0.000";
 /** Indian grouping: ₹1,23,45,678.00 */
 const INR = String.raw`[>=10000000]"₹"##\,##\,##\,##0.00;[>=100000]"₹"##\,##\,##0.00;"₹"#,##0.00`;
 const RATE = INR;
 
 const FILL_INPUT = "FFFFF2CC";
-const FILL_MISSING = "FFFDE2E2";
-const FILL_HEAD = "FFEEF2F6";
-const RED = "FF9B1C1C";
+export const FILL_MISSING = "FFFDE2E2";
+export const FILL_HEAD = "FFEEF2F6";
+export const RED = "FF9B1C1C";
 
 // ---------- small helpers ----------
 
@@ -61,7 +61,7 @@ function sheetNames(drawings: DrawingOutput[]): string[] {
   });
 }
 
-function head(row: ExcelJS.Row, from: number, to: number) {
+export function head(row: ExcelJS.Row, from: number, to: number) {
   for (let c = from; c <= to; c++) {
     const cell = row.getCell(c);
     cell.font = { bold: true };
@@ -80,7 +80,7 @@ function input(cell: ExcelJS.Cell) {
   cell.border = { top: { style: "hair" }, bottom: { style: "hair" }, left: { style: "hair" }, right: { style: "hair" } };
 }
 
-function totalRow(row: ExcelJS.Row, from: number, to: number) {
+export function totalRow(row: ExcelJS.Row, from: number, to: number) {
   for (let c = from; c <= to; c++) {
     const cell = row.getCell(c);
     cell.font = { bold: true };
@@ -89,7 +89,7 @@ function totalRow(row: ExcelJS.Row, from: number, to: number) {
 }
 
 /** Company letterhead: logo on the left, details centred across columns 1..lastCol. Returns the next free row. */
-function letterhead(ws: ExcelJS.Worksheet, data: ExcelExportData, lastCol: number, logoId: number | undefined): number {
+export function letterhead(ws: ExcelJS.Worksheet, data: ExcelExportData, lastCol: number, logoId: number | undefined): number {
   const lines: [string, Partial<ExcelJS.Font>][] = [
     [data.company.companyName, { bold: true, size: 16 }],
     [data.company.address, { size: 10 }],
@@ -108,8 +108,8 @@ function letterhead(ws: ExcelJS.Worksheet, data: ExcelExportData, lastCol: numbe
   return 6;
 }
 
-function pageSetup(ws: ExcelJS.Worksheet) {
-  ws.pageSetup = { orientation: "landscape", paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 } };
+export function pageSetup(ws: ExcelJS.Worksheet, orientation: "landscape" | "portrait" = "landscape") {
+  ws.pageSetup = { orientation, paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 } };
 }
 
 // ---------- Rates sheet ----------

@@ -8,26 +8,26 @@ import { appliesToLabel, familySums, GROUP_LABEL, itemLabels, itemRate, missingN
 // values — Summary, one section per drawing, Rates. The document definition is
 // built here (pure, testable); `costingPdfBuffer` in pdf-render.ts prints it.
 
-const INK = "#1a1a1a";
-const MUTED = "#6b6b6b";
+export const INK = "#1a1a1a";
+export const MUTED = "#6b6b6b";
 const LINE = "#d9d9d9";
 const HEAD = "#eef2f6";
-const MISSING = "#fde2e2";
-const RED = "#9b1c1c";
+export const MISSING = "#fde2e2";
+export const RED = "#9b1c1c";
 
-type Row = TableCell[];
+export type Row = TableCell[];
 
-const right = (text: string, extra: Record<string, unknown> = {}): TableCell => ({ text, alignment: "right", ...extra });
+export const right = (text: string, extra: Record<string, unknown> = {}): TableCell => ({ text, alignment: "right", ...extra });
 const kgCell = (v: number | null | undefined) => right(v === null || v === undefined ? "" : kg(v));
 const inrCell = (v: number | null | undefined) => right(v === null || v === undefined ? "" : inr(v));
 /** Add properties to a cell (plain text becomes { text }). */
-function withProps(c: TableCell, props: Record<string, unknown>): TableCell {
+export function withProps(c: TableCell, props: Record<string, unknown>): TableCell {
   const base = typeof c === "object" && c !== null && !Array.isArray(c) ? c : { text: String(c ?? "") };
   return { ...base, ...props } as TableCell;
 }
-const bold = (cells: Row): Row => cells.map((c) => withProps(c, { bold: true }));
+export const bold = (cells: Row): Row => cells.map((c) => withProps(c, { bold: true }));
 /** Header cells: right-aligned from column `rightFrom`, except the `left` ones. */
-const headRow = (labels: string[], rightFrom: number, left: number[] = []): Row =>
+export const headRow = (labels: string[], rightFrom: number, left: number[] = []): Row =>
   labels.map((t, i) => ({ text: t, bold: true, fillColor: HEAD, alignment: i >= rightFrom && !left.includes(i) ? "right" : "left" }));
 
 /** Thin rules between rows, a firmer one under the header and above totals. */
@@ -42,11 +42,11 @@ const tableLayout = (totalRow: boolean) => ({
   paddingBottom: () => 2.5,
 });
 
-function table(widths: (number | string)[], body: Row[], totalRow = false, headerRows = 1): Content {
+export function table(widths: (number | string)[], body: Row[], totalRow = false, headerRows = 1): Content {
   return { table: { headerRows, widths, body }, layout: tableLayout(totalRow) } as Content;
 }
 
-const heading = (text: string, extra: Record<string, unknown> = {}): Content => ({ text, style: "h2", ...extra });
+export const heading = (text: string, extra: Record<string, unknown> = {}): Content => ({ text, style: "h2", ...extra });
 
 // ---------- Summary ----------
 
@@ -276,15 +276,28 @@ function rates(data: ExportData): Content[] {
 // ---------- Document ----------
 
 export function buildCostingPdf(data: ExportData): TDocumentDefinitions {
-  const { company, header } = data;
   const labels = itemLabels(data.input);
+  const footerText = [data.header.clientName, data.header.projectName].filter(Boolean).join(" · ");
+  return {
+    ...pageFrame(data, { title: `Costing — ${footerText}`, footer: `Costing · ${footerText}`, orientation: "landscape" }),
+    content: [...summary(data), ...data.result.drawings.flatMap((d) => drawing(d, data, labels)), ...rates(data)],
+  };
+}
+
+/** A4 page with the company letterhead (logo + centred details) on every page and "label — Page x of y" below. */
+export function pageFrame(
+  data: ExportData,
+  opts: { title: string; footer: string; orientation: "landscape" | "portrait" },
+): Omit<TDocumentDefinitions, "content"> {
+  const { company } = data;
   const logo = data.logo ? `data:image/png;base64,${Buffer.from(data.logo).toString("base64")}` : undefined;
-  const footerText = [header.clientName, header.projectName].filter(Boolean).join(" · ");
+  // Width between the 28 pt margins: A4 is 841.89 × 595.28 pt.
+  const ruleWidth = (opts.orientation === "landscape" ? 841.89 : 595.28) - 56;
   return {
     pageSize: "A4",
-    pageOrientation: "landscape",
+    pageOrientation: opts.orientation,
     pageMargins: [28, 74, 28, 34],
-    info: { title: `Costing — ${footerText}`, author: company.companyName, creator: company.companyName },
+    info: { title: opts.title, author: company.companyName, creator: company.companyName },
     defaultStyle: { font: "Roboto", fontSize: 7.5, color: INK },
     styles: {
       h1: { fontSize: 13, bold: true, margin: [0, 0, 0, 4] },
@@ -310,17 +323,16 @@ export function buildCostingPdf(data: ExportData): TDocumentDefinitions {
               { text: "", width: 40 },
             ],
           },
-          { canvas: [{ type: "line", x1: 0, y1: 6, x2: 785.89, y2: 6, lineWidth: 1, lineColor: INK }] },
+          { canvas: [{ type: "line", x1: 0, y1: 6, x2: ruleWidth, y2: 6, lineWidth: 1, lineColor: INK }] },
         ],
       }) as Content,
     footer: (page: number, pages: number) =>
       ({
         margin: [28, 10, 28, 0],
         columns: [
-          { text: `Costing · ${footerText}`, color: MUTED, fontSize: 7 },
+          { text: opts.footer, color: MUTED, fontSize: 7 },
           { text: `Page ${page} of ${pages}`, alignment: "right", color: MUTED, fontSize: 7 },
         ],
       }) as Content,
-    content: [...summary(data), ...data.result.drawings.flatMap((d) => drawing(d, data, labels)), ...rates(data)],
   };
 }

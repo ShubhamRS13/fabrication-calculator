@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { Card, CardHeader, Empty, PageTitle, Skeleton } from "@/components/ui";
 import { kg, num } from "@/lib/format";
-import { rawMaterialList, RM_GROUP_LABEL, RM_GROUP_ORDER, type RmGroup, type RmLine, type RmRow } from "@/lib/calc/raw-material";
+import { rawMaterialList, rmBuy, RM_GROUP_LABEL, RM_GROUP_ORDER, type RmGroup, type RmLine, type RmRow } from "@/lib/calc/raw-material";
 import type { PriceUnit } from "@/lib/calc/types";
 import { loadCosting } from "@/server/load";
 
@@ -49,6 +49,24 @@ async function RawMaterial({ params }: { params: Promise<{ id: string }> }) {
         back={{ href: base, label: c.projectName }}
         title="Raw material"
         sub={`${c.clientName} · ${c.projectName} · what to buy for every drawing, quantities × assembly qty`}
+        action={
+          <div className="flex gap-2">
+            <a
+              href={`${base}/export/raw-material-excel`}
+              download
+              className="inline-flex h-10 items-center rounded-lg border border-line bg-white px-3.5 text-sm font-medium hover:bg-paper"
+            >
+              Download Excel
+            </a>
+            <a
+              href={`${base}/export/raw-material-pdf`}
+              download
+              className="inline-flex h-10 items-center rounded-lg border border-line bg-white px-3.5 text-sm font-medium hover:bg-paper"
+            >
+              Download PDF
+            </a>
+          </div>
+        }
       />
 
       {list.skipped.length > 0 && (
@@ -146,11 +164,8 @@ function MaterialHeadAndRow({ row, prev, rows, itemHref }: { row: RmRow; prev?: 
 }
 
 function main(r: RmRow): string {
-  if (r.group === "sheet" || r.group === "other") return `${kg(r.buyKg)} kg`;
-  if (LENGTH_GROUPS.includes(r.group)) return metres(r.lengthM);
-  if (r.unit === "m" && r.lengthM > 0) return metres(r.lengthM);
-  if (r.unit === "kg" && r.finishKg > 0) return `${kg(r.finishKg)} kg`;
-  return `${num(r.pieces)} ${UNIT[r.unit === "set" ? "set" : "piece"]}`;
+  const b = rmBuy(r);
+  return b.unit === "kg" ? `${kg(b.qty)} kg` : b.unit === "m" ? metres(b.qty) : `${num(b.qty)} ${b.unit}`;
 }
 
 function mainSub(r: RmRow): string | null {
