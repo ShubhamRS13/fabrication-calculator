@@ -22,6 +22,12 @@ describe("bought-out catalogue", () => {
     expect(boughtLabel(kind("Blind flange"), { nb: "100", cls: "150#" })).toBe("Blind flange 100 NB 150#");
   });
 
+  it("flanges take an optional THK; without it the name (and rate) stays as before", () => {
+    expect(boughtLabel(kind("Flange"), { nb: "50", cls: "150#", ftype: "Plate" })).toBe("Flange 50 NB 150# Plate");
+    expect(boughtLabel(kind("Flange"), { nb: "50", cls: "150#", ftype: "Plate", thk: 12 })).toBe("Flange 50 NB 150# Plate 12 THK");
+    expect(boughtLabel(kind("Blind flange"), { nb: "100", cls: "PN16", thk: "16" })).toBe("Blind flange 100 NB PN16 16 THK");
+  });
+
   it("'Other' descriptions ignore case, spacing and punctuation", () => {
     expect(normaliseDesc("Ball valve  25nb, s/s")).toBe(normaliseDesc("BALL VALVE 25NB S/S"));
     expect(normaliseDesc("hex hd bolt M10x25")).toBe(normaliseDesc("HEX HD BOLT M10 X 25"));

@@ -43,8 +43,8 @@ export const DEFAULT_KINDS: BoughtKind[] = [
 ];
 
 export const TEMPLATE_LABEL: Record<Template, string> = {
-  flange: "Flange (NB, class, type)",
-  blind: "Blind flange (NB, class)",
+  flange: "Flange (NB, class, type, THK)",
+  blind: "Blind flange (NB, class, THK)",
   stub: "Stub end (NB, long/short, schedule)",
   fitting: "Fitting (NB, rating, end)",
   reducing: "Reducing fitting (two NB, rating, end)",
@@ -91,14 +91,15 @@ const F = {
   rtype: { key: "rtype", label: "Type", kind: "select", options: list(["Concentric", "Eccentric"]) },
   thread: { key: "thread", label: "Thread", kind: "select", options: THREAD },
   len: { key: "len", label: "Length", kind: "number", unit: "mm" },
+  thk: { key: "thk", label: "THK", kind: "number", unit: "mm", optional: true, help: "Flange thickness, e.g. for plate flanges" },
   wtype: { key: "wtype", label: "Type", kind: "select", options: list(["Plain", "Spring"]) },
   gmat: { key: "gmat", label: "Gasket material", kind: "select", options: list(["CAF", "PTFE", "Rubber", "Spiral wound", "Graphite"]) },
   desc: { key: "desc", label: "Description", kind: "text", help: "e.g. Ball valve 25 NB" },
 } satisfies Record<string, FieldDef>;
 
 export const TEMPLATE_FIELDS: Record<Template, FieldDef[]> = {
-  flange: [F.nb, F.cls, F.ftype],
-  blind: [F.nb, F.cls],
+  flange: [F.nb, F.cls, F.ftype, F.thk],
+  blind: [F.nb, F.cls, F.thk],
   stub: [F.nb, F.stub, F.schedule],
   fitting: [F.nb, F.rating, F.end],
   reducing: [F.nb, F.nb2, F.rating, F.end],
@@ -146,13 +147,16 @@ const v = (inputs: ItemInputs, key: string) => {
   return x === undefined || x === null ? "" : String(x).trim();
 };
 
+/** "12 THK" when a thickness is entered; blank otherwise, so older flanges keep their name and rate. */
+const thkPart = (inputs: ItemInputs) => (Number(inputs.thk) > 0 ? `${Number(inputs.thk)} THK` : "");
+
 /** The catalogue name of a bought-out: kind + size fields. Same item → same name. */
 export function boughtLabel(kind: BoughtKind, inputs: ItemInputs): string {
   const nb = (k: string) => (v(inputs, k) ? `${v(inputs, k)} NB` : "");
   const parts: string[] = [];
   switch (kind.template) {
-    case "flange": parts.push(nb("nb"), v(inputs, "cls"), v(inputs, "ftype")); break;
-    case "blind": parts.push(nb("nb"), v(inputs, "cls")); break;
+    case "flange": parts.push(nb("nb"), v(inputs, "cls"), v(inputs, "ftype"), thkPart(inputs)); break;
+    case "blind": parts.push(nb("nb"), v(inputs, "cls"), thkPart(inputs)); break;
     case "stub": parts.push(nb("nb"), v(inputs, "stub"), v(inputs, "rating")); break;
     case "fitting": parts.push(nb("nb"), v(inputs, "rating"), v(inputs, "end")); break;
     case "reducing": parts.push(`${nb("nb")} × ${nb("nb2")}`, v(inputs, "rating"), v(inputs, "end")); break;
