@@ -5,6 +5,7 @@ import { CYLINDER_TYPES } from "./items/cylinders";
 import { DISH_TYPES } from "./items/dish-ends";
 import { pyramidHopper, rectDuct } from "./items/panels";
 import { TRANSITION_TYPES } from "./items/transitions";
+import { ELBOW_TYPES } from "./items/elbows";
 import { SECTION_TYPES } from "./items/sections";
 import { boughtDish, boughtFlange, boughtMisc, boughtOut, dishedEnd } from "./items/bought";
 import { makeCustomItemType, type CustomShapeDef } from "./custom";
@@ -13,6 +14,7 @@ export const BUILT_IN_TYPES: ItemType[] = [
   ...CYLINDER_TYPES, ...CONE_TYPES, ...DISH_TYPES,
   plate, flat, disc, ringFlange, rectFlange, pyramidHopper, rectDuct, bentPlate,
   ...TRANSITION_TYPES,
+  ...ELBOW_TYPES,
   ...SECTION_TYPES,
   boughtOut, dishedEnd, boughtFlange, boughtDish, boughtMisc,
 ];

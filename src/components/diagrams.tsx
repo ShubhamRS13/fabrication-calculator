@@ -411,7 +411,8 @@ const DIAGRAMS: Record<string, () => ReactNode> = {
   "hex-bar": () => {
     const pts = Array.from({ length: 6 }, (_, i) => {
       const a = (Math.PI / 3) * i;
-      return `${CX + 58 * Math.cos(a)},${95 + 58 * Math.sin(a)}`;
+      // Rounded: server and browser maths can differ in the last digit (hydration mismatch).
+      return `${(CX + 58 * Math.cos(a)).toFixed(2)},${(95 + 58 * Math.sin(a)).toFixed(2)}`;
     });
     return (
       <Svg label="Hex bar: across flats s">
@@ -429,6 +430,102 @@ const DIAGRAMS: Record<string, () => ReactNode> = {
   "beam-h": () => <BeamSection label="H beam ISHB from the table: depth D, flange B" wide />,
   structural: () => <BeamSection label="Rolled section from the table" />,
   "section-custom": () => <BeamSection label="Custom I / H / C: depth D, flange width B, web tw, flange tf" thicknesses />,
+};
+
+// ---------- elbows and segmented bends ----------
+
+type P2 = [number, number];
+
+/** A pipe bent along the centre-line `pts` (half-width w), each piece ending on its mitre line. */
+function BentPipe({ pts, w }: { pts: P2[]; w: number }) {
+  const unit = (a: P2, b: P2): P2 => {
+    const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    return [(b[0] - a[0]) / l, (b[1] - a[1]) / l];
+  };
+  const perp = (d: P2): P2 => [-d[1], d[0]];
+  // Mitre line at each vertex: the two edge points of the pipe there.
+  const cuts = pts.map((p, i) => {
+    const n0 = i > 0 ? perp(unit(pts[i - 1], p)) : null;
+    const n1 = i < pts.length - 1 ? perp(unit(p, pts[i + 1])) : null;
+    const n = n0 && n1 ? unit([0, 0], [n0[0] + n1[0], n0[1] + n1[1]]) : (n0 ?? n1)!;
+    const k = w / (n[0] * (n0 ?? n1)![0] + n[1] * (n0 ?? n1)![1]);
+    return [[p[0] + n[0] * k, p[1] + n[1] * k], [p[0] - n[0] * k, p[1] - n[1] * k]] as [P2, P2];
+  });
+  const line = (pp: P2[]) => pp.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+  // Generator lines at quarter points across each cut, rounded (no hydration mismatch).
+  const across = ([a, b]: [P2, P2]) => [0.25, 0.5, 0.75].map((s): P2 => [+(a[0] + (b[0] - a[0]) * s).toFixed(1), +(a[1] + (b[1] - a[1]) * s).toFixed(1)]);
+  return (
+    <>
+      {cuts.slice(0, -1).map((c, i) => (
+        <g key={i}>
+          <Gens top={across(c)} bottom={across(cuts[i + 1])} />
+          <Shape d={`${line([c[0], cuts[i + 1][0], cuts[i + 1][1], c[1]])} Z`} />
+        </g>
+      ))}
+      <path d={line(pts)} fill="none" stroke={GREEN} strokeWidth={1} strokeDasharray="10 3 2 3" />
+    </>
+  );
+}
+
+/** Centre-line of a segmented bend: centre c, radius r, sweep (deg, anticlockwise from the +x side), n segments incl. 2 half ends. */
+function segPoints(c: P2, r: number, sweep: number, n: number): P2[] {
+  const half = (sweep / (2 * (n - 1)) * Math.PI) / 180;
+  const at = (a: number, rr: number): P2 => [c[0] + rr * Math.cos(a), c[1] - rr * Math.sin(a)];
+  const pts: P2[] = [at(0, r)];
+  for (let j = 0; j < n - 1; j++) pts.push(at(half * (2 * j + 1), r / Math.cos(half)));
+  pts.push(at((sweep * Math.PI) / 180, r));
+  return pts;
+}
+
+const ELBOW_DIAGRAMS: Record<string, () => ReactNode> = {
+  "elbow-90": () => (
+    <Svg label="Elbow pipe to pipe 90°: pipe dia D, leg L1 and leg L2 on the centre-line to where the centre-lines meet">
+      <BentPipe pts={[[80, 182], [80, 70], [196, 70]]} w={20} />
+      <DimV y1={70} y2={182} x={36} label="L1" from={[80, 60]} />
+      <DimH x1={80} x2={196} y={28} label="L2" from={[70, 50]} />
+      <DimV y1={50} y2={90} x={210} label="" />
+      <Label x={206} y={110} a="end">D</Label>
+      <Angle cx={80} cy={70} r={30} a0={0} a1={90} label="90°" />
+    </Svg>
+  ),
+  "elbow-angle": () => (
+    <Svg label="Elbow pipe to pipe, angle: pipe dia D, legs L1 and L2 on the centre-line, angle A between the legs">
+      <BentPipe pts={[[72, 186], [72, 96], [176, 58]]} w={18} />
+      <DimV y1={96} y2={186} x={30} label="L1" from={[72, 54]} />
+      <Label x={130} y={62}>L2</Label>
+      <Angle cx={72} cy={96} r={34} a0={-20} a1={90} label="A" />
+      <Label x={196} y={96}>D</Label>
+    </Svg>
+  ),
+  "elbow-double": () => (
+    <Svg label="Double elbow (centre-line): pipe dia D, bottom straight B, rise H between the bends, top straight T, offset E between the pipe centre-lines">
+      <BentPipe pts={[[64, 190], [64, 140], [150, 66], [150, 16]]} w={16} />
+      <DimV y1={140} y2={190} x={30} label="B" from={[64, 40]} />
+      <DimV y1={66} y2={140} x={30} label="H" from={[150, 40]} />
+      <DimV y1={16} y2={66} x={190} label="T" from={[150, 168]} />
+      <DimH x1={64} x2={150} y={196} label="" from={[190, 70]} />
+      <Label x={107} y={188}>E</Label>
+    </Svg>
+  ),
+  "seg-bend-90": () => (
+    <Svg label="Segmented bend 90°: pipe dia D, bend radius R on the centre-line, number of segments n (two half segments at the ends)">
+      <BentPipe pts={segPoints([44, 176], 128, 90, 5)} w={18} />
+      <Dashed d="M44,176 L134.5,85.5 M44,176 L172,176 M44,176 L44,48" />
+      <Label x={96} y={124}>R</Label>
+      <DimH x1={154} x2={190} y={194} label="D" from={[176, 176]} />
+      <Label x={190} y={30} a="end">n segments</Label>
+    </Svg>
+  ),
+  "seg-bend-angle": () => (
+    <Svg label="Segmented bend, angle: pipe dia D, bend radius R on the centre-line, bend angle θ, number of segments n">
+      <BentPipe pts={segPoints([40, 176], 140, 60, 6)} w={18} />
+      <Dashed d="M40,176 L180,176 M40,176 L110,54.8" />
+      <Angle cx={40} cy={176} r={44} a0={-60} a1={0} label="θ" />
+      <Label x={118} y={142}>R</Label>
+      <DimH x1={162} x2={198} y={194} label="D" from={[176, 176]} />
+      <Label x={200} y={30} a="end">n segments</Label>
+    </Svg>
+  ),
 };
 
 const CutLength = () => <Label x={CX} y={196}>× cut length L</Label>;
@@ -583,6 +680,8 @@ function Dish({ depth, showDepth, tori, label }: { depth: number; showDepth?: bo
 }
 
 /** Elevation drawing with lettered dimensions, or null when the type has none yet. */
+Object.assign(DIAGRAMS, ELBOW_DIAGRAMS);
+
 export function ReferenceDiagram({ typeId }: { typeId: string }) {
   const d = DIAGRAMS[typeId];
   return d ? <>{d()}</> : null;

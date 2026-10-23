@@ -11,7 +11,8 @@ export interface Material {
   family: MaterialFamily;
 }
 
-export type DiaRef = "ID" | "OD";
+/** OD / ID, or MEAN (the plate centre-line, Plate'n'Sheets "Mean"). */
+export type DiaRef = "ID" | "OD" | "MEAN";
 
 export type ItemCategory =
   | "fabricated"
@@ -94,6 +95,8 @@ export interface MassReport {
   frame: MassFigures;
   actual: MassFigures;
   pieces: { name: string; count: number; frameW: number; frameH: number; frame: MassFigures; actual: MassFigures }[];
+  /** Set when all pieces are cut from one sheet W × H (then `frame` is that sheet). */
+  nested?: { w: number; h: number };
 }
 
 /** Shop-floor marking table, e.g. generator lengths at each division. */

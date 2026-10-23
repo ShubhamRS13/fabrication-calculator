@@ -5,11 +5,11 @@ export const kg = (volumeMm3: number, density: number) => (volumeMm3 * density) 
 
 /** Mean diameter used for development: OD − t, or ID + t. */
 export function meanDia(d: number, ref: DiaRef, thk: number): number {
-  return ref === "OD" ? d - thk : d + thk;
+  return ref === "OD" ? d - thk : ref === "MEAN" ? d : d + thk;
 }
 
 export function outerDia(d: number, ref: DiaRef, thk: number): number {
-  return ref === "OD" ? d : d + 2 * thk;
+  return ref === "OD" ? d : ref === "MEAN" ? d + thk : d + 2 * thk;
 }
 
 /** Format a number for formula text: up to 3 decimals, no trailing zeros. */
@@ -52,7 +52,7 @@ export function bool(inputs: ItemInputs, key: string, fallback = false): boolean
 }
 
 export function diaRef(inputs: ItemInputs, key = "diaRef"): DiaRef {
-  return inputs[key] === "ID" ? "ID" : "OD";
+  return inputs[key] === "ID" ? "ID" : inputs[key] === "MEAN" ? "MEAN" : "OD";
 }
 
 /** Build a weight result where scrap = process − finish (never negative). */

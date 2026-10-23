@@ -150,7 +150,11 @@ export function rawMaterialList(c: CostingInput, out: CostingOutput): RawMateria
         const label = it.price?.group === "plate" ? it.price.label : `${thk} mm`;
         const r = row("sheet", it.material, chequered ? `${label} chequered` : label, drawingNo, { thk });
         addWeights(r, it);
-        const pieces = unit.mass?.pieces ?? [];
+        // Pieces nested on one sheet (elbows, segmented bends): that sheet is the piece to cut.
+        const nest = unit.mass?.nested;
+        const pieces = nest
+          ? [{ count: 1, frameW: nest.w, frameH: nest.h, frame: unit.mass!.frame }]
+          : (unit.mass?.pieces ?? []);
         const perUnitKg = pieces.reduce((a, p) => a + p.frame.mass, 0) || 1;
         for (const p of pieces) {
           const w = Math.min(p.frameW, p.frameH);

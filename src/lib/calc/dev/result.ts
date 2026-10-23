@@ -49,12 +49,22 @@ export function devResult(
     markTable?: MarkTable;
     fixedCost?: number;
     surfaceArea?: number;
+    /**
+     * All pieces nested on one sheet W × H (e.g. elbow / segmented-bend pieces
+     * sharing their cut lines): process uses this sheet, not the sum of piece frames.
+     */
+    nestedSheet?: { w: number; h: number };
   },
 ): ItemResult {
   const mass = massReport(dev, t, density);
+  const nest = opts.nestedSheet;
+  if (nest) {
+    mass.frame = fig(nest.w * nest.h, 2 * (nest.w + nest.h), t, density);
+    mass.nested = nest;
+  }
   const finish = mass.actual.mass;
   const process = mass.frame.mass;
-  const single = dev.pieces.length === 1 && dev.pieces[0].count === 1;
+  const single = !!nest || (dev.pieces.length === 1 && dev.pieces[0].count === 1);
   const lines = [
     ...opts.steps,
     ...mass.pieces.map(
@@ -62,14 +72,14 @@ export function devResult(
         `${p.name}${p.count > 1 ? ` × ${p.count}` : ""}: shape ${f(p.actual.area / p.count, 6)} m², frame ${f(p.frameW)} × ${f(p.frameH)}`,
     ),
     `Finish = shape area ${f(mass.actual.area * 1e6)} mm² × ${f(t)} × ${f(density)} / 1e6 = ${f(finish)} kg`,
-    `Process = frame area ${f(mass.frame.area * 1e6)} mm² × ${f(t)} × ${f(density)} / 1e6 = ${f(process)} kg`,
+    `Process = ${nest ? `one sheet ${f(nest.w)} × ${f(nest.h)} for all pieces,` : "frame"} area ${f(mass.frame.area * 1e6)} mm² × ${f(t)} × ${f(density)} / 1e6 = ${f(process)} kg`,
   ];
   return {
     finishWt: finish,
     processWt: process,
     scrap: Math.max(0, process - finish),
-    sheetL: single ? mass.pieces[0].frameW : undefined,
-    sheetW: single ? mass.pieces[0].frameH : undefined,
+    sheetL: nest ? nest.w : single ? mass.pieces[0].frameW : undefined,
+    sheetW: nest ? nest.h : single ? mass.pieces[0].frameH : undefined,
     development: opts.development,
     fixedCost: opts.fixedCost ?? 0,
     costedByWeight: true,

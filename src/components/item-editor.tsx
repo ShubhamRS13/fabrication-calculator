@@ -395,7 +395,7 @@ function ItemEditorForm({
                 {r.sheetL !== undefined && r.sheetW !== undefined && <Stat label="Ideal sheet L × W" value={`${num(r.sheetL)} × ${num(r.sheetW)}`} />}
                 {r.kgPerM !== undefined && <Stat label="kg/m" value={num(r.kgPerM)} />}
                 {r.development &&
-                  Object.entries(r.development).map(([k, v]) => <Stat key={k} label={devLabel(k)} value={k === "theta" ? `${num(v)}°` : num(v)} />)}
+                  Object.entries(r.development).map(([k, v]) => <Stat key={k} label={devLabel(k)} value={["theta", "bendAngle", "segmentAngle"].includes(k) ? `${num(v)}°` : num(v)} />)}
                 {r.fixedCost > 0 && <Stat label="Job work" value={`${inr(r.fixedCost)} × ${num(multiplier)} = ${inr(r.fixedCost * multiplier)}`} />}
               </>
             )}
@@ -552,17 +552,21 @@ function FieldInput({ field: f, values, lib, onChange }: { field: FieldDef; valu
     return (
       <div>
         <Label>{f.label}</Label>
-        <div className="grid h-10 grid-cols-2 rounded-lg border border-line bg-white p-0.5" role="radiogroup" aria-label={f.label}>
-          {["OD", "ID"].map((o) => (
+        <div
+          className={cx("grid h-10 rounded-lg border border-line bg-white p-0.5", (f.options?.length ?? 2) === 3 ? "grid-cols-3" : "grid-cols-2")}
+          role="radiogroup"
+          aria-label={f.label}
+        >
+          {(f.options ?? [{ value: "OD", label: "OD" }, { value: "ID", label: "ID" }]).map((o) => (
             <button
-              key={o}
+              key={o.value}
               type="button"
               role="radio"
-              aria-checked={v === o}
-              onClick={() => onChange(o)}
-              className={cx("rounded-md text-sm font-medium", v === o ? "bg-ink text-white" : "text-muted")}
+              aria-checked={v === o.value}
+              onClick={() => onChange(o.value)}
+              className={cx("rounded-md text-sm font-medium", v === o.value ? "bg-ink text-white" : "text-muted")}
             >
-              {o}
+              {o.label}
             </button>
           ))}
         </div>

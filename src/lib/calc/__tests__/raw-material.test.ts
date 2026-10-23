@@ -51,6 +51,7 @@ function costing(): CostingInput {
           { id: "rf1", itemNo: "7", type: "rect-flange", name: "Frame", qty: 1, inputs: { madeFrom: "flat", length: 600, width: 400, innerL: 500, innerW: 300, thk: 8 } },
           { id: "rf2", itemNo: "8", type: "rect-flange", name: "Frame", qty: 2, inputs: { madeFrom: "flat", length: 700, width: 400, innerL: 500, innerW: 300, thk: 8 } },
           { id: "rf3", itemNo: "9", type: "rect-flange", name: "Frame", qty: 1, inputs: { length: 600, width: 400, innerL: 500, innerW: 300, thk: 8 } },
+          { id: "el", itemNo: "10", type: "elbow-90", name: "Elbow", qty: 2, inputs: { dia: 200, diaRef: "MEAN", leg1: 600, leg2: 500, thk: 8 } },
         ],
       },
     ],
@@ -135,6 +136,15 @@ describe("raw material list", () => {
     expect(f100.pieces).toBe(4);
     const s8 = find("sheet", "SS304", "8 mm");
     expect(s8.lines.filter((l) => l.itemId === "rf3").map((l) => [l.qty, l.w, l.l])).toEqual([[2, 50, 600], [2, 50, 300]]);
+  });
+
+  it("elbow pieces nested on one sheet are one sheet piece", () => {
+    const s8 = find("sheet", "SS304", "8 mm");
+    const el = s8.lines.filter((l) => l.itemId === "el");
+    expect(el).toHaveLength(1);
+    expect(el[0].qty).toBe(2);
+    expect(el[0].w).toBeCloseTo(Math.PI * 200, 9);
+    expect(el[0].l).toBe(1100);
   });
 
   it("rect frame from flat is priced as a flat; unequal strips name both widths", () => {
