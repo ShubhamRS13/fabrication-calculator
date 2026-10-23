@@ -22,7 +22,7 @@ export function AddDrawingForm({ costingId }: { costingId: string }) {
 
   return (
     <form ref={form} action={submit} className="grid gap-2 border-t border-line px-4 py-3 sm:grid-cols-[12rem_1fr_auto]">
-      <Input name="drawingNo" required placeholder="Drawing no." aria-label="Drawing no." />
+      <Input name="drawingNo" required placeholder="Drawing no." aria-label="Drawing no." data-shortcut="n" />
       <Input name="title" placeholder="Title, e.g. Storage Hopper" aria-label="Drawing title" />
       <Button type="submit" variant="primary" disabled={pending}>+ Add drawing</Button>
       <div className="sm:col-span-3"><ErrorText>{error}</ErrorText></div>

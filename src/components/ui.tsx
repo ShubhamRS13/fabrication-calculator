@@ -44,7 +44,7 @@ export function PageTitle({ title, sub, back, action }: { title: ReactNode; sub?
   return (
     <div className="mb-4">
       {back && (
-        <Link href={back.href} className="mb-1 inline-block text-sm text-muted hover:text-ink">
+        <Link href={back.href} data-shortcut="b" className="mb-1 inline-block text-sm text-muted hover:text-ink">
           ← {back.label}
         </Link>
       )}

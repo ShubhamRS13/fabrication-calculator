@@ -11,7 +11,7 @@ export default function CostingsPage(props: PageProps<"/">) {
       <PageTitle
         title="Costings"
         sub="Search by client, project, PO no. or drawing no."
-        action={<ButtonLink href="/costings/new" variant="primary">+ New costing</ButtonLink>}
+        action={<ButtonLink href="/costings/new" variant="primary" data-shortcut="n">+ New costing</ButtonLink>}
       />
       <Suspense fallback={<Skeleton lines={4} />}>
         <CostingList searchParams={props.searchParams} />
@@ -27,7 +27,7 @@ async function CostingList({ searchParams }: { searchParams: PageProps<"/">["sea
   return (
     <>
       <form role="search" className="mb-4 flex gap-2">
-        <Input name="q" type="search" defaultValue={q} placeholder="Search costings…" aria-label="Search costings" />
+        <Input name="q" type="search" data-shortcut="/" defaultValue={q} placeholder="Search costings…" aria-label="Search costings" />
         <button className="h-10 rounded-lg border border-line bg-white px-4 text-sm font-medium hover:bg-paper">Search</button>
       </form>
       <Card>

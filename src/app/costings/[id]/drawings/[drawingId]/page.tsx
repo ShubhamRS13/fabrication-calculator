@@ -24,6 +24,9 @@ async function Drawing({ params }: { params: Promise<{ id: string; drawingId: st
   const c = tree.costing;
   const registry = buildRegistry(shapes);
   const base = `/costings/${c.id}/drawings/${drawing.id}`;
+  const at = tree.drawings.findIndex((d) => d.id === drawing.id);
+  const prev = tree.drawings[at - 1];
+  const next = tree.drawings[at + 1];
   const label = (type: string) => registry.get(type)?.label ?? type;
   const size = (it: ItemOutput) => itemSize(registry.get(it.item.type), it.item.inputs, lib);
 
@@ -74,7 +77,21 @@ async function Drawing({ params }: { params: Promise<{ id: string; drawingId: st
         back={{ href: `/costings/${c.id}`, label: c.projectName }}
         title={drawing.drawingNo}
         sub={`${drawing.title || "Drawing"} · material ${drawing.material ?? c.defaultMaterial}${drawing.material ? "" : " (default)"}`}
-        action={<ButtonLink href={`${base}/items/new`} variant="primary">+ Add item</ButtonLink>}
+        action={
+          <>
+            {prev && (
+              <ButtonLink href={`/costings/${c.id}/drawings/${prev.id}`} data-shortcut="[" title={`Previous drawing: ${prev.drawingNo}`} aria-label="Previous drawing">
+                ‹
+              </ButtonLink>
+            )}
+            {next && (
+              <ButtonLink href={`/costings/${c.id}/drawings/${next.id}`} data-shortcut="]" title={`Next drawing: ${next.drawingNo}`} aria-label="Next drawing">
+                ›
+              </ButtonLink>
+            )}
+            <ButtonLink href={`${base}/items/new`} variant="primary" data-shortcut="n">+ Add item</ButtonLink>
+          </>
+        }
       />
 
       <div className="grid gap-4 lg:grid-cols-[1fr_22rem] [&>*]:min-w-0">

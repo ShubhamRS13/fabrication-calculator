@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Suspense, type ReactNode } from "react";
 import { LogoutButton, NavLinks, NavList } from "./nav-links";
+import { Shortcuts } from "./shortcuts";
 
 export function AppShell({ children }: { children: ReactNode }) {
   return (
@@ -18,6 +19,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <NavLinks variant="top" />
               </Suspense>
             </nav>
+            <Suspense>
+              <Shortcuts />
+            </Suspense>
             <Suspense>
               <LogoutButton />
             </Suspense>

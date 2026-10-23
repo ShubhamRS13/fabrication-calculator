@@ -366,9 +366,9 @@ function ItemEditorForm({
         </Card>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="primary" onClick={() => save(false)} disabled={pending}>{pending ? "Saving…" : "Save item"}</Button>
-          {!item && <Button onClick={() => save(true)} disabled={pending}>Save & add another</Button>}
-          <Button variant="ghost" onClick={() => router.push(backHref)} disabled={pending}>Cancel</Button>
+          <Button variant="primary" onClick={() => save(false)} disabled={pending} data-shortcut="mod+s">{pending ? "Saving…" : "Save item"}</Button>
+          {!item && <Button onClick={() => save(true)} disabled={pending} data-shortcut="mod+enter">Save & add another</Button>}
+          <Button variant="ghost" onClick={() => router.push(backHref)} disabled={pending} data-shortcut="escape">Cancel</Button>
           {item && <Button variant="danger" onClick={remove} disabled={pending} className="ml-auto">Delete item</Button>}
         </div>
         <ErrorText>{error}</ErrorText>
