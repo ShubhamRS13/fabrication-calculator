@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { rectToRound } from "../items/transitions";
+import { rectToRect, rectToRound, roundToRoundAngleTop } from "../items/transitions";
+import { CalcError } from "../types";
 import { itemSize } from "../size";
 import type { ItemInputs } from "../types";
 
@@ -105,5 +106,61 @@ describe("transition rectangle to round", () => {
 
   it("Size text", () => {
     expect(itemSize(rectToRound, { ...base, r: 25 })).toBe("3 THK × 600 × 400 × Ø300 × H 500 (r 25)");
+  });
+});
+
+// Plate'n'Sheets Professional V4 outputs, Screenshot/ folders (23 Oct 2026).
+describe("transitions vs Plate'n'Sheets", () => {
+  const c = { density: 7.25 };
+  const rr = (pieces: string) =>
+    rectToRect.compute({ a1: 300, b1: 500, r1: 30, a2: 100, b2: 300, r2: 20, height: 400, thk: 6, diaRef: "OD", pieces }, c);
+
+  it("rectangle to rectangle 300 × 500 r30 → 100 × 300 r20, H 400, 6 THK outside", () => {
+    const two = rr("2");
+    // P'n'S actual 0.4700839 m², 20.45 kg at 7.25 (ours divides the corners finer)
+    expect(two.mass!.actual.area).toBeCloseTo(0.4700839, 3);
+    expect(two.finishWt).toBeCloseTo(20.45, 1);
+    // 2 cuts: each piece about 714.47 × 476.89 (rect 0.3407232 m²)
+    for (const p of two.mass!.pieces) {
+      expect(p.frameW).toBeCloseTo(714.47, 0);
+      expect(Math.abs(p.frameH - 476.89)).toBeLessThan(2);
+    }
+    // 1 cut: 1276.21 × 566.84
+    const one = rr("1");
+    expect(Math.abs(one.mass!.pieces[0].frameW - 1276.21)).toBeLessThan(1);
+    expect(Math.abs(one.mass!.pieces[0].frameH - 566.84)).toBeLessThan(1);
+    expect(one.finishWt).toBeCloseTo(two.finishWt, 9);
+    expect(rr("4").finishWt).toBeCloseTo(two.finishWt, 9);
+  });
+
+  it("rectangle to rectangle with sharp corners = four flat trapezia", () => {
+    const r = rectToRect.compute({ a1: 400, b1: 600, a2: 200, b2: 300, height: 500, thk: 2, diaRef: "MEAN", pieces: "4" }, c);
+    const trap = (top: number, bot: number, h: number) => ((top + bot) / 2) * h;
+    const sideA = Math.hypot(500, (600 - 300) / 2); // slant of the A sides
+    const sideB = Math.hypot(500, (400 - 200) / 2);
+    const area = 2 * trap(200, 400, sideA) + 2 * trap(300, 600, sideB);
+    expect(r.mass!.actual.area * 1e6).toBeCloseTo(area, 3);
+  });
+
+  it("round to round, top at 45°: Ø500 → Ø300, H 500, 6 THK outside", () => {
+    const r = roundToRoundAngleTop.compute({ d1: 500, d2: 300, height: 500, tilt: 45, thk: 6, diaRef: "OD" }, c);
+    // P'n'S 0.6044009 m² with 24 divisions; ours (96) is the truer surface, 0.3 % more
+    expect(Math.abs(r.mass!.actual.area - 0.6044009) / 0.6044009).toBeLessThan(0.005);
+    const p = r.mass!.pieces[0];
+    expect(Math.abs(p.frameW - 1430.22)).toBeLessThan(5);
+    expect(Math.abs(p.frameH - 620.17)).toBeLessThan(2);
+  });
+
+  it("round to round with a flat top is a cone frustum", () => {
+    const r = roundToRoundAngleTop.compute({ d1: 600, d2: 300, height: 400, tilt: 0, thk: 2, diaRef: "MEAN" }, c);
+    const slant = Math.hypot(400, 150);
+    // 96 straight divisions sit just inside the true cone (0.02 % less)
+    const exact = Math.PI * (300 + 150) * slant;
+    expect(Math.abs(r.mass!.actual.area * 1e6 - exact) / exact).toBeLessThan(0.001);
+  });
+
+  it("rejects impossible sizes", () => {
+    expect(() => rectToRect.compute({ a1: 300, b1: 500, r1: 200, a2: 100, b2: 300, height: 400, thk: 6 }, c)).toThrow(CalcError);
+    expect(() => roundToRoundAngleTop.compute({ d1: 500, d2: 300, height: 100, tilt: 60, thk: 6 }, c)).toThrow(CalcError);
   });
 });

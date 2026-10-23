@@ -9,6 +9,7 @@ export const DEV_LABELS: Record<string, string> = {
   flatWidth: "Flat width W", flatLength: "Flat length π × Dm", cutLength: "Cut length incl. allowance",
   totalLength: "Total centre-line length", cutOffset: "Cut offset ± (from square)", middle: "Middle length", bendAngle: "Bend angle δ",
   segmentAngle: "Full segment angle", fullSegment: "Full segment length",
+  am: "Mean top side a", bm: "Mean top side b", dm: "Mean top dia dm",
   stripTopBottom: "Top / bottom strip width b", stripSide: "Side strip width a", stripLength: "Total strip length",
 };
 

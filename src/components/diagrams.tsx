@@ -478,6 +478,37 @@ function segPoints(c: P2, r: number, sweep: number, n: number): P2[] {
 }
 
 const ELBOW_DIAGRAMS: Record<string, () => ReactNode> = {
+  "transition-rect-rect": () => (
+    <Svg label="Transition rectangle to rectangle: plan with base A by B (corner radius R) and top a by b (corner radius r); elevation with height H">
+      {/* plan: base 32..124 × 30..130 (R 8), top 58..98 × 55..105 (r 5), corner lines */}
+      <Gens top={[[58, 55], [98, 55], [58, 105], [98, 105]]} bottom={[[34, 32], [122, 32], [34, 128], [122, 128]]} />
+      <Shape d="M40,30 L116,30 Q124,30 124,38 L124,122 Q124,130 116,130 L40,130 Q32,130 32,122 L32,38 Q32,30 40,30 Z" fill={false} />
+      <Shape d="M63,55 L93,55 Q98,55 98,60 L98,100 Q98,105 93,105 L63,105 Q58,105 58,100 L58,60 Q58,55 63,55 Z" />
+      <Label x={78} y={84}>a × b</Label>
+      <Label x={128} y={26} a="start">R</Label>
+      <Label x={102} y={52} a="start">r</Label>
+      <DimH x1={32} x2={124} y={150} label="A" from={[130, 130]} />
+      <DimV y1={30} y2={130} x={16} label="B" from={[32, 32]} />
+      {/* elevation */}
+      <Gens top={[[160, 120], [168, 120], [176, 120]]} bottom={[[144, 180], [168, 180], [192, 180]]} />
+      <Shape d="M136,180 L200,180 L182,120 L154,120 Z" />
+      <Axis x={168} y1={110} y2={190} />
+      <DimV y1={120} y2={180} x={210} label="" from={[182, 200]} />
+      <Label x={214} y={154}>H</Label>
+    </Svg>
+  ),
+  "transition-round-angle-top": () => (
+    <Svg label="Transition round to round, angle top: base dia D, top dia d tilted at angle beta, height H to the top centre on the axis">
+      <Gens top={[[86, 68], [110, 78], [134, 88]]} bottom={[[72, 166], [110, 166], [148, 166]]} />
+      <Shape d="M50,166 L170,166 L150,96 L70,56 Z" />
+      <Axis x={110} y1={40} y2={180} />
+      <Dashed d="M110,76 L170,76" />
+      <Angle cx={110} cy={76} r={40} a0={-0.1} a1={26.6} label="β" />
+      <DimH x1={50} x2={170} y={188} label="D" from={[166, 166]} />
+      <Label x={102} y={58} a="end">d</Label>
+      <DimV y1={76} y2={166} x={24} label="H" from={[110, 50]} />
+    </Svg>
+  ),
   "elbow-90": () => (
     <Svg label="Elbow pipe to pipe 90°: pipe dia D, leg L1 and leg L2 on the centre-line to where the centre-lines meet">
       <BentPipe pts={[[80, 182], [80, 70], [196, 70]]} w={20} />
