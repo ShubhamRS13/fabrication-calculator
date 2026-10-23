@@ -251,8 +251,12 @@ export const rectFlange: ItemType = {
   category: "fabricated",
   family: FAMILY,
   label: "Rectangular flange / frame",
-  description: "A rectangular frame: outer rectangle with a centred rectangular opening.",
-  formulaText: ["Finish = (L × W − l × w) × t × ρ / 1e6", "Process = L × W × t × ρ / 1e6"],
+  description:
+    "A rectangular frame: outer rectangle with a centred rectangular opening. Made from 4 strips (flat or sheet strips), so the opening is not scrap.",
+  formulaText: [
+    "Strips: 2 × L × b (top, bottom) + 2 × w × a (sides),  a = (L − l) / 2,  b = (W − w) / 2",
+    "Finish = Process = (L × W − l × w) × t × ρ / 1e6",
+  ],
   fields: [
     { key: "length", label: "Outer L", kind: "number", unit: "mm" },
     { key: "width", label: "Outer W", kind: "number", unit: "mm" },
@@ -267,21 +271,35 @@ export const rectFlange: ItemType = {
     const w = optNum(inp, "innerW");
     const t = pos(inp, "thk", "THK");
     if (l >= L || w >= W) throw new CalcError("Inner size must be smaller than outer size");
+    if (!(l > 0 && w > 0)) {
+      return devResult(
+        { pieces: [{ name: "Plate", count: 1, outline: rect(0, 0, L, W) }] },
+        t,
+        density,
+        { steps: [`No opening: plate ${f(L)} × ${f(W)}`] },
+      );
+    }
+    // Made from 4 strips (flat or sheet strips): top and bottom run the full length,
+    // sides fit between them. No cut-out scrap, so process = finish.
+    const a = (L - l) / 2;
+    const b = (W - w) / 2;
+    const strip = (name: string, len: number, wid: number) => ({
+      name,
+      count: 2,
+      outline: rect(0, 0, len, wid),
+      dims: [{ kind: "text" as const, label: `${f(len, 1)} × ${f(wid, 1)}`, at: [len / 2, wid / 2] as Pt }],
+    });
     return devResult(
-      {
-        pieces: [
-          {
-            name: "Frame",
-            count: 1,
-            outline: rect(0, 0, L, W),
-            holes: l > 0 && w > 0 ? [rect((L - l) / 2, (W - w) / 2, l, w)] : [],
-            dims: l > 0 && w > 0 ? [{ kind: "text", label: `${f(l, 1)} × ${f(w, 1)}`, at: [L / 2, W / 2] }] : [],
-          },
-        ],
-      },
+      { pieces: [strip("Top / bottom strip", L, b), strip("Side strip", w, a)] },
       t,
       density,
-      { steps: [`Outer ${f(L)} × ${f(W)}, inner ${f(l)} × ${f(w)}`] },
+      {
+        steps: [
+          `Outer ${f(L)} × ${f(W)}, inner ${f(l)} × ${f(w)}: made from strips, no cut-out scrap`,
+          `Top / bottom: 2 × ${f(L)} × ${f(b)} mm; sides: 2 × ${f(w)} × ${f(a)} mm`,
+        ],
+        development: { stripsTopBottom: b, stripsSide: a },
+      },
     );
   },
 };

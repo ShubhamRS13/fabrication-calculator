@@ -38,11 +38,26 @@ describe("sheet items match the workbook LAMBDAs", () => {
     expect(() => ringFlange.compute({ od: 400, id: 400, thk: 10 }, MS)).toThrow(CalcError);
   });
 
-  it("rect flange = outer − inner", () => {
+  it("rect flange = outer − inner, made from strips: no scrap", () => {
     const r = rectFlange.compute({ length: 600, width: 400, innerL: 500, innerW: 300, thk: 8 }, MS);
     expect(r.finishWt).toBeCloseTo(
       WB.FLANGE_SQUARE(600, 400, 8, 1, 7.85) - WB.FLANGE_SQUARE(500, 300, 8, 1, 7.85), 9);
-    expect(r.processWt).toBeCloseTo(WB.FLANGE_SQUARE(600, 400, 8, 1, 7.85), 9);
+    expect(r.finishWt).toBeCloseTo(5.652, 9);
+    expect(r.processWt).toBeCloseTo(r.finishWt, 9);
+    const pieces = r.mass!.pieces.map((p) => [p.count, p.frameW, p.frameH]);
+    expect(pieces).toEqual([[2, 600, 50], [2, 300, 50]]);
+  });
+
+  it("rect flange with unequal strip widths", () => {
+    const r = rectFlange.compute({ length: 700, width: 400, innerL: 500, innerW: 300, thk: 6 }, MS);
+    expect(r.mass!.pieces.map((p) => [p.count, p.frameW, p.frameH])).toEqual([[2, 700, 50], [2, 300, 100]]);
+    expect(r.processWt).toBeCloseTo(r.finishWt, 9);
+  });
+
+  it("rect flange without opening is a plain plate", () => {
+    const r = rectFlange.compute({ length: 600, width: 400, thk: 8 }, MS);
+    expect(r.finishWt).toBeCloseTo(WB.FLANGE_SQUARE(600, 400, 8, 1, 7.85), 9);
+    expect(r.processWt).toBeCloseTo(r.finishWt, 9);
   });
 
   it("bent plate = girth × length", () => {
