@@ -48,6 +48,9 @@ function costing(): CostingInput {
           { id: "o1", itemNo: "4", type: "bought", name: "Bolt", qty: 10, inputs: { kind: "Other", desc: "Hex hd bolt M10x25" } },
           { id: "o2", itemNo: "5", type: "bought", name: "Lock nut", qty: 5, inputs: { kind: "Other", desc: "Nylo lock nut M8" } },
           { id: "o3", itemNo: "6", type: "bought", name: "Wheel", qty: 2, inputs: { kind: "Other", desc: "Wheel" } },
+          { id: "rf1", itemNo: "7", type: "rect-flange", name: "Frame", qty: 1, inputs: { madeFrom: "flat", length: 600, width: 400, innerL: 500, innerW: 300, thk: 8 } },
+          { id: "rf2", itemNo: "8", type: "rect-flange", name: "Frame", qty: 2, inputs: { madeFrom: "flat", length: 700, width: 400, innerL: 500, innerW: 300, thk: 8 } },
+          { id: "rf3", itemNo: "9", type: "rect-flange", name: "Frame", qty: 1, inputs: { length: 600, width: 400, innerL: 500, innerW: 300, thk: 8 } },
         ],
       },
     ],
@@ -122,6 +125,26 @@ describe("raw material list", () => {
     expect(f.longestMm).toBeCloseTo(1000, 9);
   });
 
+  it("rect frames from flat: one row per strip size; from sheet: strips under Sheets", () => {
+    // rf1: 2 × 600 + 2 × 300 of 50 wide; rf2 (qty 2): 2 × 700 of 50 wide, 2 × 300 of 100 wide.
+    const f50 = find("flat", "SS304", "Flat 50 × 8");
+    expect(f50.lengthM).toBeCloseTo((2 * 600 + 2 * 300 + 2 * 2 * 700) / 1000, 9);
+    expect(f50.pieces).toBe(8);
+    const f100 = find("flat", "SS304", "Flat 100 × 8");
+    expect(f100.lengthM).toBeCloseTo((2 * 2 * 300) / 1000, 9);
+    expect(f100.pieces).toBe(4);
+    const s8 = find("sheet", "SS304", "8 mm");
+    expect(s8.lines.filter((l) => l.itemId === "rf3").map((l) => [l.qty, l.w, l.l])).toEqual([[2, 50, 600], [2, 50, 300]]);
+  });
+
+  it("rect frame from flat is priced as a flat; unequal strips name both widths", () => {
+    const items = out.drawings[1].items;
+    expect(items.find((i) => i.item.id === "rf1")?.price?.label).toBe("Flat 50 × 8");
+    expect(items.find((i) => i.item.id === "rf2")?.price?.label).toBe("Flat 50 & 100 × 8");
+    expect(items.find((i) => i.item.id === "rf1")?.lengthM).toBeCloseTo(1.8, 9);
+    expect(items.find((i) => i.item.id === "rf3")?.price?.label).toBe("8 mm");
+  });
+
   it("lists sections by size", () => {
     const a = find("section", "SS304", "Angle 50 × 50 × 6");
     expect(a.lengthM).toBeCloseTo(3.2, 9);
@@ -153,6 +176,6 @@ describe("raw material list", () => {
     const groups = list.rows.map((r) => r.group);
     expect(groups).toEqual([...groups].sort((a, b) => WEIGHED.concat(["hardware", "bought", "jobwork"]).indexOf(a) - WEIGHED.concat(["hardware", "bought", "jobwork"]).indexOf(b)));
     const ss = list.rows.filter((r) => r.group === "sheet" && r.material === "SS304").map((r) => r.label);
-    expect(ss).toEqual(["3 mm", "4 mm", "4 mm chequered", "5 mm", "10 mm"]);
+    expect(ss).toEqual(["3 mm", "4 mm", "4 mm chequered", "5 mm", "8 mm", "10 mm"]);
   });
 });

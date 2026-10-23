@@ -89,7 +89,7 @@ export interface RawMaterialList {
 }
 
 const PIPE_TYPES = new Set(["pipe-sch", "pipe-is1239", "pipe-swg", "pipe-custom", "rect-tube"]);
-const FLAT_TYPES = new Set(["flat", "ring-flange"]);
+const FLAT_TYPES = new Set(["flat", "ring-flange", "rect-flange"]);
 const HARDWARE: Template[] = ["bolt", "nut", "washer", "set"];
 /** "Other" and older bought items carry free text; these words mark them as hardware. */
 const HARDWARE_WORDS = /\b(BOLTS?|NUTS?|WASHERS?|STUDS?|SCREWS?|RIVETS?|SPLIT PINS?|THREADED RODS?)\b/i;
@@ -159,6 +159,25 @@ export function rawMaterialList(c: CostingInput, out: CostingOutput): RawMateria
           r.pieces += qty;
           r.lines.push({ ...base, qty, w, l, kg: (it.processWt * p.frame.mass) / perUnitKg });
           if (!r.largest || l > r.largest.l || (l === r.largest.l && w > r.largest.w)) r.largest = { w, l };
+        }
+      } else if (group === "flat" && it.item.type === "rect-flange") {
+        // Frame from flat: each strip size is its own flat row (top/bottom and sides may differ).
+        const thk = num(it.item.inputs.thk);
+        const pieces = unit.mass?.pieces ?? [];
+        const perUnitKg = pieces.reduce((a, p) => a + p.frame.mass, 0) || 1;
+        for (const p of pieces) {
+          const r = row("flat", it.material, `Flat ${Math.min(p.frameW, p.frameH)} × ${thk}`, drawingNo);
+          const share = p.frame.mass / perUnitKg;
+          r.processKg += it.processWt * share;
+          r.burningKg += it.burning * share;
+          r.buyKg += (it.processWt + it.burning) * share;
+          r.finishKg += it.finishWt * share;
+          const lengthMm = Math.max(p.frameW, p.frameH);
+          const qty = p.count * n;
+          r.lengthM += (lengthMm * qty) / 1000;
+          r.pieces += qty;
+          r.longestMm = Math.max(r.longestMm, lengthMm);
+          r.lines.push({ ...base, qty, lengthMm, kg: it.processWt * share });
         }
       } else if (group === "pipe" || group === "flat" || group === "section") {
         const r = row(group, it.material, it.price!.label, drawingNo);

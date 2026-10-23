@@ -256,8 +256,25 @@ export const rectFlange: ItemType = {
   formulaText: [
     "Strips: 2 × L × b (top, bottom) + 2 × w × a (sides),  a = (L − l) / 2,  b = (W − w) / 2",
     "Finish = Process = (L × W − l × w) × t × ρ / 1e6",
+    "From flat: cut length = 2 × L + 2 × w",
   ],
+  priceRef: (i) => {
+    if (!fromFlat(i)) return { group: "plate", label: `${String(i.thk ?? "")} mm` };
+    const a = (num0(i.length) - num0(i.innerL)) / 2;
+    const b = (num0(i.width) - num0(i.innerW)) / 2;
+    return { group: "size", label: `Flat ${a === b ? b : `${b} & ${a}`} × ${String(i.thk ?? "")}` };
+  },
   fields: [
+    {
+      key: "madeFrom",
+      label: "Made from",
+      kind: "select",
+      options: [
+        { value: "sheet", label: "Sheet / plate (cut strips)" },
+        { value: "flat", label: "Flat" },
+      ],
+      default: "sheet",
+    },
     { key: "length", label: "Outer L", kind: "number", unit: "mm" },
     { key: "width", label: "Outer W", kind: "number", unit: "mm" },
     { key: "innerL", label: "Inner l", kind: "number", unit: "mm" },
@@ -272,6 +289,7 @@ export const rectFlange: ItemType = {
     const t = pos(inp, "thk", "THK");
     if (l >= L || w >= W) throw new CalcError("Inner size must be smaller than outer size");
     if (!(l > 0 && w > 0)) {
+      if (fromFlat(inp)) throw new CalcError("A frame made from flat needs the inner size");
       return devResult(
         { pieces: [{ name: "Plate", count: 1, outline: rect(0, 0, L, W) }] },
         t,
@@ -289,18 +307,19 @@ export const rectFlange: ItemType = {
       outline: rect(0, 0, len, wid),
       dims: [{ kind: "text" as const, label: `${f(len, 1)} × ${f(wid, 1)}`, at: [len / 2, wid / 2] as Pt }],
     });
-    return devResult(
+    const res = devResult(
       { pieces: [strip("Top / bottom strip", L, b), strip("Side strip", w, a)] },
       t,
       density,
       {
         steps: [
-          `Outer ${f(L)} × ${f(W)}, inner ${f(l)} × ${f(w)}: made from strips, no cut-out scrap`,
+          `Outer ${f(L)} × ${f(W)}, inner ${f(l)} × ${f(w)}: made from ${fromFlat(inp) ? "flat" : "sheet strips"}, no cut-out scrap`,
           `Top / bottom: 2 × ${f(L)} × ${f(b)} mm; sides: 2 × ${f(w)} × ${f(a)} mm`,
         ],
-        development: { stripsTopBottom: b, stripsSide: a },
+        development: { stripTopBottom: b, stripSide: a, stripLength: 2 * L + 2 * w },
       },
     );
+    return fromFlat(inp) ? { ...res, cutLength: 2 * L + 2 * w } : res;
   },
 };
 
